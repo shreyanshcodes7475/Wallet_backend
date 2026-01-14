@@ -1,6 +1,6 @@
 const {DataTypes}=require("sequelize");
 const {sequelize}=require("../config/database");
-const User=require("./User");
+const {User}=require("./User");
 const { FOREIGNKEYS } = require("sequelize/lib/query-types");
 
 const Wallet=sequelize.define("Wallet",{
@@ -29,4 +29,4 @@ const Wallet=sequelize.define("Wallet",{
 User.hasOne(Wallet,{foreignKey:"userId"});
 Wallet.belongsTo(User,{foreignKey:"userId"});
 
-module.exports=Wallet;
+module.exports={Wallet};

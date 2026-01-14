@@ -1,7 +1,7 @@
 const {DataTypes}=require("sequelize");
 const {sequelize}=require("../config/database");
-const User = require("./User");
-const Transaction=require("./Transaction")
+const {User} = require("./User");
+const {Transaction}=require("./Transaction")
 
 
 const AuditLog=sequelize.define("AuditLog",{
@@ -32,4 +32,4 @@ AuditLog.belongsTo(User,{foreignKey:"userId"});
 Transaction.hasMany(AuditLog,{foreignKey:"transactionId"});
 AuditLog.belongsTo(Transaction,{foreignKey:"transactionId"});
 
-module.exports=AuditLog;
+module.exports={AuditLog};

@@ -1,6 +1,19 @@
 ## Description
 The Secure Digital Wallet System allows users to securely add money, transfer funds to other users, and view transaction history. The system ensures atomic transactions, data consistency, authentication, authorization, and audit logging, similar to real-world banking systems.
 
+Your system is:
+A Digital Wallet & Transaction Engine
+
+Its job is:
+
+Identity
+Authentication
+Money movement
+Audit
+It is NOT a KYC / HR / profile system.
+
+“I intentionally kept the user table minimal because sensitive KYC data like address or date of birth should be handled by a separate compliance system.”
+
 ## Core Functional Requirements
 🔹 User Features
 
@@ -128,3 +141,26 @@ So: DataTypes.UUIDV4
 
 means:
 Generate a cryptographically random unique ID.
+
+
+🏦 Why we should NOT create token on signup
+
+In real financial systems:
+
+Signup ≠ Login
+
+Identity creation ≠ Session creation
+
+Banks always do:
+
+“Account created. Please log in.”
+
+They don’t auto-log you in because:
+
+User might be unverified
+
+Password was just set
+
+Risk of session fixation
+
+Security policy
