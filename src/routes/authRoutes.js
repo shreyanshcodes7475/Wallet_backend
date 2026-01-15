@@ -7,7 +7,8 @@ const { User } = require("../models/User");
 const {Wallet}=require("../models/Wallet")
 const {sequelize}=require("../config/database");
 const { generateToken } = require("../utils/jwt");
-const { DATE } = require("sequelize");
+const {auth} =require("../middlewares/auth")
+
 
 // signup api
 authrouter.post("/signup",validateSignUpData,async(req,res)=>{
@@ -63,7 +64,7 @@ authrouter.post("/login",async(req,res)=>{
             })
         }
 
-        const user=await User.findOne({where:email});
+        const user=await User.findOne({where:{email}});
         if(!user){
             return res.status(400).json({
                 message:"Invalid Credentials"
@@ -81,8 +82,8 @@ authrouter.post("/login",async(req,res)=>{
 
         res.cookie("token",token,{
             httpOnly:true,
-            sameSite:Strict,
-            expires:new Date(DATE.now() + 8*60*60*1000)
+            sameSite:"Strict",
+            expires:new Date(Date.now() + 8*60*60*1000)
         })
 
         res.json({
@@ -100,6 +101,14 @@ authrouter.post("/login",async(req,res)=>{
     }
 
 
+})
+
+// auth test api
+authrouter.get("/protected",auth,(req,res)=>{
+    res.json({
+        message:"You are logged in",
+        user:req.user.email
+    })
 })
 
 
