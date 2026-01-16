@@ -1,6 +1,6 @@
 const {DataTypes}=require("sequelize")
 const {sequelize}=require("../config/database");
-const {Wallet} = require("./Wallet");
+
 
 const Transaction=sequelize.define("Transaction",{
     id:{
@@ -35,12 +35,6 @@ const Transaction=sequelize.define("Transaction",{
     timestamps:true,
 })
 
-// relations
 
-Wallet.hasMany(Transaction,{foreignKey:"fromWalletId", as: "sentTransactions"});
-Wallet.hasMany(Transaction,{foreignKey:"toWalletId", as:"receivedTransactions"});
-
-Transaction.belongsTo(Wallet,{foreignKey:"fromWalletId", as:"fromWallet"});
-Transaction.belongsTo(Wallet,{foreignKey:"toWalletId", as:"toWallet"});
 
 module.exports={Transaction};

@@ -164,3 +164,93 @@ Password was just set
 Risk of session fixation
 
 Security policy
+
+
+💰 Transaction table = Money movement
+
+This stores:
+
+“What happened to money?”
+📜 Audit Log = System activity log
+
+This stores:“Who did what, from where, and when?”
+
+
+🧠 Think in real-world terms
+One Transaction (₹500 transfer) can generate multiple logs:
+
+TRANSFER_INITIATED
+BALANCE_DEBITED
+BALANCE_CREDITED
+TRANSFER_SUCCESS
+
+So : 1 transaction → many audit logs
+But:
+1 audit log → only 1 transaction
+
+So in database terms: Transaction 1 ─────< AuditLog
+Transaction.hasMany(AuditLog, { foreignKey: "transactionId" });
+AuditLog.belongsTo(Transaction, { foreignKey: "transactionId" });
+
+audit_logs.transactionId stores which transaction this log belongs to
+One transaction can have many audit rows
+
+
+🧠 Node.js ka module resolution rule
+
+Jab tu likhta hai: require("../models")
+
+
+Node internally yeh steps follow karta hai:
+
+1️⃣ Check karta hai: ../models.js
+
+
+Agar nahi mila →
+2️⃣ Check karta hai: ../models.json
+
+
+Agar nahi mila →
+3️⃣ Check karta hai: ../models/index.js   👈 THIS
+Agar ye mil gaya → Node use load kar leta hai.
+“Node automatically loads index.js when requiring a folder.”
+
+
+
+## v.v.v.vimp const t = await sequelize.transaction();
+ACID properties
+t ensures A + C
+“I use database transactions to guarantee atomicity in money operations.”
+“Next kuch queries ko ek bundle me treat karo.”
+Ya to sab succeed
+Ya sab rollback
+
+if(err) await t.rollback();
+if(!err) await t.commit();
+
+
+what about 
+t.LOCK.UPDATE:  “Is wallet ko abhi koi aur touch nahi karega jab tak main kaam finish na kar loon.”
+MySQL bolta hai:
+“Is row pe exclusive lock laga do”
+Dusra request wait karega
+Jab pehla commit karega → tab next chalega
+
+
+
+
+
+🏦 Real-world meaning
+
+Soch: User ₹500 add kar raha hai
+
+Isme 4 cheezein hoti hain:
+
+Wallet balance badhta
+Transaction record banta
+Audit log banta
+System success mark karta
+
+Agar beech me koi fail ho gaya: sab kuch wapas hona chahiye
+
+Bank kabhi nahi bolega: “Balance badh gaya but transaction record nahi bana” ❌

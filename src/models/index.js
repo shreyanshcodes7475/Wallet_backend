@@ -1,0 +1,46 @@
+const { sequelize } = require("../config/database");
+const { User } = require("./User");
+const { Wallet } = require("./Wallet");
+const { Transaction } = require("./Transaction");
+const { AuditLog } = require("./AuditLogs");
+
+// User ↔ Wallet
+User.hasOne(Wallet, { foreignKey: "userId" });
+Wallet.belongsTo(User, { foreignKey: "userId" });
+
+// Wallet ↔ Transactions
+Wallet.hasMany(Transaction, {
+  foreignKey: "fromWalletId",
+  as: "sentTransactions"
+});
+
+Wallet.hasMany(Transaction, {
+  foreignKey: "toWalletId",
+  as: "receivedTransactions"
+});
+
+Transaction.belongsTo(Wallet, {
+  foreignKey: "fromWalletId",
+  as: "fromWallet"
+});
+
+Transaction.belongsTo(Wallet, {
+  foreignKey: "toWalletId",
+  as: "toWallet"
+});
+
+// User ↔ AuditLog
+User.hasMany(AuditLog, { foreignKey: "userId" });
+AuditLog.belongsTo(User, { foreignKey: "userId" });
+
+// Transaction ↔ AuditLog
+Transaction.hasMany(AuditLog, { foreignKey: "transactionId" });
+AuditLog.belongsTo(Transaction, { foreignKey: "transactionId" });
+
+module.exports = {
+  User,
+  Wallet,
+  Transaction,
+  AuditLog,
+  sequelize
+};

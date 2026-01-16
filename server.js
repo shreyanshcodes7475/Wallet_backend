@@ -3,10 +3,7 @@ const app=require("./src/app");
 const {connectDB,sequelize}=require("./src/config/database")
 
 // importing models
-require("./src/models/User");
-require("./src/models/Wallet");
-require("./src/models/AuditLogs");
-require("./src/models/Transaction")
+require("./src/models");
 
 const port=process.env.PORT || 5000;
 

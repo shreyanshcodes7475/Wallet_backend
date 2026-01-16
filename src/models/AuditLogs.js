@@ -1,7 +1,6 @@
 const {DataTypes}=require("sequelize");
 const {sequelize}=require("../config/database");
-const {User} = require("./User");
-const {Transaction}=require("./Transaction")
+
 
 
 const AuditLog=sequelize.define("AuditLog",{
@@ -24,12 +23,5 @@ const AuditLog=sequelize.define("AuditLog",{
     timestamps:true,
 })
 
-// Relations
-
-User.hasMany(AuditLog,{foreignKey:"userId"});
-AuditLog.belongsTo(User,{foreignKey:"userId"});
-
-Transaction.hasMany(AuditLog,{foreignKey:"transactionId"});
-AuditLog.belongsTo(Transaction,{foreignKey:"transactionId"});
 
 module.exports={AuditLog};

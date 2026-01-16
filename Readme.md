@@ -144,5 +144,28 @@ data leaks
 
 
 
+🏦 What Transfer Money MUST guarantee (bank rules)
 
+When User A sends money to User B:
 
+✅ No double spending
+✅ Balance never goes negative
+✅ Sender & receiver update together
+✅ One failure → everything rollback
+✅ Full audit trail
+
+That’s why we need:
+
+DB transaction (t)
+Row locking
+Transaction + AuditLog entries
+
+## FLOW
+    1. start a session
+    2. lock sender wallet
+    3. lock receriver wallet
+    4.checck balnace
+    5. deduct sedner
+    6. credit receiver\
+    7. create audit log
+    8. commit
