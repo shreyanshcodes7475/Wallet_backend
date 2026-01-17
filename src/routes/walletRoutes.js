@@ -4,6 +4,8 @@ const { auth } = require("../middlewares/auth");
 const { Wallet, Transaction, AuditLog } = require("../models");
 const express=require("express");
 const walletRouter=express.Router();
+const { Op } = require("sequelize");
+
  
 
 
@@ -89,7 +91,6 @@ walletRouter.post("/add",auth,async(req,res)=>{
         })
     }
 })
-
 
 // Transfer money api
 walletRouter.post("/transfer",auth, async(req,res)=>{
@@ -192,6 +193,83 @@ walletRouter.post("/transfer",auth, async(req,res)=>{
             error:err.message
         })
     }
+})
+
+// transaction history api
+walletRouter.get("/transaction",auth,async(req,res)=>{
+    try{
+    const user=req.user.id;
+
+    if(!user){
+        return res.status(401).json({
+            message:"User does not found"
+        })
+    }
+    const page=Math.max(Number(req.query.page)|| 1,1);
+    const limit=Math.min(Number(req.query.limit) || 10,50);
+    const offset=(page-1)*limit;
+
+    const type=(req.query.type || "ALL").toUpperCase();
+    const allowedTypes=["ALL", "SENT","RECEIVED"];
+
+    if(!allowedTypes.includes(type)){
+        return res.status(400).json({
+            message:"Invalid type. Use ALL | SENT | RECEIVED",
+        })
+    }
+
+    const wallet=await Wallet.findOne({
+        where:{userId:user}
+    })
+
+    if(!wallet){
+        return res.status(404).json({
+            message:"Wallet not found"
+        })
+    }
+
+    // build where condtion
+    let whereCondition={};
+
+    if(type==="SENT"){
+        whereCondition={fromWalletId:wallet.id};
+    }
+    else if(type==="RECEIVED"){
+        whereCondition={toWalletId:wallet.id};
+    }
+    else whereCondition={
+        [Op.or]:[
+            {fromWalletId:wallet.id},
+            {toWalletId:wallet.id}
+        ]
+    }
+
+    // fetch transaction
+    const {count,rows}=await Transaction.findAndCountAll({
+        where:whereCondition,
+        order:[["createdAt","DESC"]],
+        limit,
+        offset
+    });
+
+    res.json({
+        page,
+        limit,
+        type,
+        totalTransaction:count,
+        totalPages:Math.ceil(count/limit),
+        transaction:rows
+    })
+
+    }
+    catch(err){
+        res.status(500).json({
+            message:"Failed to fetch transaction history",
+            error:err.message
+        })
+    }
+
+
 })
 
 module.exports={walletRouter};
