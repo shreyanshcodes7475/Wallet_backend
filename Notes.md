@@ -236,6 +236,16 @@ MySQL bolta hai:
 Dusra request wait karega
 Jab pehla commit karega → tab next chalega
 
+## “sequelize.authenticate() is used to verify database connectivity before running queries.”
+DB ke saath connection try karta hai
+Login credentials correct?
+Host reachable?
+Network / port open?
+
+👉 Koi table create nahi hota
+👉 Koi query nahi chalti
+
+Sirf handshake.
 
 
 

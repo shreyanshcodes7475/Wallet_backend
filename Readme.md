@@ -101,6 +101,45 @@ data leaks
 
 
 
+## Role of admin
+
+Admin ka kaam money move karna nahi, balki:
+
+👀 Monitor transactions
+🧾 Audit trail dekhna
+🚨 Suspicious activity identify karna
+🔎 Compliance & debugging
+Admin controls system, not users.
+
+<!-- admin api login  -->
+✅ Option 1: Seed / Manual Admin 
+Admin:
+
+DB me manually create hota hai
+Ya ek protected internal API se
+
+✅ Option 2: Protected Admin Signup API (acceptable for college project)
+
+Same signup logic
+BUT: API protected
+
+Only existing admin can create another admin
+
+“Admin accounts are created through protected internal APIs, never public signup.”
+
+“Admins are users with elevated roles, so we model them in the same table with role-based access.”
+
+<!-- why don't we create a seprate db for admin-- -->
+1. single source of truth
+2. easier auth logic ..(jwt me role store hoga)
+3. easy role extension: role=admin| support| auditor
+4. industry standard: banks,saas apps
+
+when to have separate db
+1. when admin is completely indepedent system 
+2. differnt auth provider
+
+
 
 
 
