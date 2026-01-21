@@ -264,3 +264,17 @@ System success mark karta
 Agar beech me koi fail ho gaya: sab kuch wapas hona chahiye
 
 Bank kabhi nahi bolega: “Balance badh gaya but transaction record nahi bana” ❌
+
+
+## Idempotency key = unique request identifier that ensures a financial operation is processed only once.
+
+without idempotency keys --
+User clicks “Transfer” button twice OR Network timeout → frontend retries request: it will cause double debit
+
+what idempotency keys does
+it will provide 
+
+## Rate Limiting
+Ek user / IP kitni baar API hit kar sakta hai ek fixed time me
+
+------------------------------------------------------------------

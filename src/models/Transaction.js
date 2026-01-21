@@ -16,6 +16,12 @@ const Transaction=sequelize.define("Transaction",{
         unique:true
     },
 
+    idempotencyKey:{
+        type: DataTypes.STRING,
+        unique:true,
+        allowNull:false
+    },
+
     amount:{
         type:DataTypes.DECIMAL(15,2),
         allowNull:false,

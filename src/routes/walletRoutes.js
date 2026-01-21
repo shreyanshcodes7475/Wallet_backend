@@ -1,10 +1,12 @@
-const { NUMBER } = require("sequelize");
+const { NUMBER, Model } = require("sequelize");
 const {sequelize} = require("../config/database");
+const{User}=require("../models")
 const { auth } = require("../middlewares/auth");
 const { Wallet, Transaction, AuditLog } = require("../models");
 const express=require("express");
 const walletRouter=express.Router();
 const { Op } = require("sequelize");
+const { transferLimiter } = require("../middlewares/rateLimiter");
 
  
 
@@ -38,7 +40,7 @@ walletRouter.get("/balance",auth, async(req,res)=>{
 })
 
 // add money
-walletRouter.post("/add",auth,async(req,res)=>{
+walletRouter.post("/add",auth,transferLimiter,async(req,res)=>{
     const t=await sequelize.transaction();
     try{
         const {amount}=req.body;
@@ -93,14 +95,19 @@ walletRouter.post("/add",auth,async(req,res)=>{
 })
 
 // Transfer money api
-walletRouter.post("/transfer",auth, async(req,res)=>{
-    const t=await sequelize.transaction();
+walletRouter.post("/transfer",auth, transferLimiter,async(req,res)=>{
+
     try{
-        const {toUserId,amount}=req.body;
+        const {toUserId,amount,idempotencyKey}=req.body;
         const fromUser=req.user;
 
+        if(!idempotencyKey){
+            return res.status(400).json({
+                message:"idempotency key is required"
+            })
+        }
+
         if(!toUserId || !amount || amount<=0){
-            await t.rollback();
             return res.status(400).json({
                 message:"Invalid Request"
             })
@@ -111,6 +118,8 @@ walletRouter.post("/transfer",auth, async(req,res)=>{
                 message:"Cannot transfer to self"
             })
         }
+
+        const t=await sequelize.transaction();
         
         // lock sender wallet 
         const senderWallet=await Wallet.findOne({
@@ -122,6 +131,25 @@ walletRouter.post("/transfer",auth, async(req,res)=>{
         // checking fromUser balance
         if(!senderWallet){
             throw new Error("Sender wallet does not exist")
+        }
+
+
+        // check for dupplicate request
+        const existingTxn=await Transaction.findOne({
+            where:{
+                idempotencyKey,
+                fromWalletId:senderWallet?.id
+            },
+            transaction:t,
+            lock:t.LOCK.UPDATE
+            
+        })
+        if(existingTxn){
+            await t.rollback();
+            return res.status(200).json({
+                message:"Transfer successful",
+                transactionId:existingTxn.id
+            })
         }
 
         if(Number(senderWallet.balance)<Number(amount)){
@@ -155,7 +183,8 @@ walletRouter.post("/transfer",auth, async(req,res)=>{
             type:"TRANSFER",
             status:"SUCCESS",
             fromWalletId:senderWallet.id,
-            toWalletId:receiverWallet.id
+            toWalletId:receiverWallet.id,
+            idempotencyKey
         },{transaction:t})
 
 
@@ -188,7 +217,7 @@ walletRouter.post("/transfer",auth, async(req,res)=>{
     }
     catch(err){
         await t.rollback();
-        res.status(400).json({
+        res.status(500).json({
             message:"something went wrong! Transfer Money process failed , Your money isn't deducted",
             error:err.message
         })
@@ -249,7 +278,21 @@ walletRouter.get("/transaction",auth,async(req,res)=>{
         where:whereCondition,
         order:[["createdAt","DESC"]],
         limit,
-        offset
+        offset,
+            include: [
+                {
+                model: Wallet,
+                as: "fromWallet",
+                attributes:[],
+                include: [{ model: User, attributes: ["id", "email"] }]
+                },
+                {
+                model: Wallet,
+                as: "toWallet",
+                attributes:[],
+                include: [{ model: User, attributes: ["id", "email"] }]
+                }
+            ]
     });
 
     res.json({

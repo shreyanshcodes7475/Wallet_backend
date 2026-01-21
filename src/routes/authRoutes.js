@@ -6,11 +6,12 @@ const bcrypt=require("bcrypt");
 const { User, Wallet } = require("../models");
 const {sequelize}=require("../config/database");
 const { generateToken } = require("../utils/jwt");
-const {auth} =require("../middlewares/auth")
+const {auth} =require("../middlewares/auth");
+const { loginLimiter } = require("../middlewares/rateLimiter");
 
 
 // signup api
-authrouter.post("/signup",validateSignUpData,async(req,res)=>{
+authrouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
     const t=await sequelize.transaction();
     const { firstName, lastName, email, password } = req.body;
     try{

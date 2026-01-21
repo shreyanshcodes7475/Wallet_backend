@@ -1,210 +1,203 @@
+# 🏦 VaultPay – Secure Wallet & Transaction System (Backend)
+
+A **banking-grade wallet system backend** built with Node.js, Express, MySQL, and Sequelize, focusing on **transaction safety, idempotency, auditability, and admin controls**.
+
+---
+
+## 🚀 Features
+
+### 👤 User Features
+
+* User signup & login (JWT-based authentication)
+* Automatic wallet creation
+* View wallet balance
+* Secure money transfer
+* Transaction history with pagination & filters
+* Retry-safe transfers using **Idempotency Keys**
+
+### 🛡️ Security & Reliability
+
+* Row-level locking (`FOR UPDATE`) to prevent race conditions
+* Atomic DB transactions with rollback
+* Idempotency to prevent double spending
+* Rate limiting on sensitive APIs
+* Secure password hashing (bcrypt)
+* HTTP-only cookies for JWT
+
+### 👨‍💼 Admin Features
+
+* Admin authentication & role-based access
+* View all transactions with filters (type, status, pagination)
+* Advanced audit logs (who did what, when, from where)
+* Admin dashboard with system KPIs:
+
+  * Total users
+  * Total wallets
+  * Total transactions
+  * Total transaction volume
+  * Failed transactions
+  * Today’s transaction stats
+  * Today's user stats
+
+---
+
+## 🧠 System Design Principles
+
+* **Exactly-once execution** for financial operations
+* **Separation of concerns** (controllers, routes, models, middleware)
+* **Audit-first design** for compliance & traceability
+* **Database as source of truth**
+
+---
+
+## 🏗️ Architecture Overview
+
+```
+Client
+  |
+  |  HTTP (JWT + Idempotency-Key)
+  v
+API Layer (Express)
+  |
+  |-- Auth Middleware (JWT)
+  |-- Admin Auth Middleware
+  |-- Rate Limiter
+  |
+Service Layer
+  |
+  |-- Wallet Logic
+  |-- Transfer Logic
+  |-- Admin Analytics
+  |
+Database (MySQL)
+  |
+  |-- Users
+  |-- Wallets
+  |-- Transactions
+  |-- AuditLogs
+```
+
+---
+
+## 🗄️ Database Schema (Simplified)
+
+### User
+
+* id
+* firstName
+* lastName
+* email (unique)
+* password (hashed)
+* role (user/admin)
+
+### Wallet
+
+* id
+* userId (FK)
+* balance
+
+### Transaction
+
+* id
+* referenceId (UUID)
+* amount
+* type (ADD / TRANSFER)
+* status (SUCCESS / FAILED / PENDING)
+* fromWalletId
+* toWalletId
+* idempotencyKey (unique per wallet)
+
+### AuditLog
+
+* id
+* userId
+* transactionId (nullable)
+* action
+* ipAddress
+* createdAt
+
+---
+
+## 🔁 Money Transfer Flow (High Level)
+
+```
+1. Validate request (no DB)
+2. Start DB transaction
+3. Lock sender wallet
+4. Check idempotency key
+5. Validate balance
+6. Lock receiver wallet
+7. Update balances
+8. Create transaction record
+9. Create audit logs
+10. Commit transaction
+```
+
+---
+
+## 🔑 Idempotency (Banking-Grade)
+
+* Client sends a unique `idempotencyKey` for each transfer
+* Same key retried → same response returned
+* Prevents double spending during retries or network failures
+
+---
+
+## 📊 Admin Dashboard Metrics
+
+* Total users
+* Total wallets
+* Total transactions
+* Total transaction volume
+* Failed transactions
+* Today’s transactions & volume
+
+---
+
+## 🧪 Tech Stack
+
+* **Backend:** Node.js, Express
+* **Database:** MySQL
+* **ORM:** Sequelize
+* **Auth:** JWT, bcrypt
+* **Security:** Rate limiting, HTTP-only cookies
+* **Logging:** Audit logs
+* **Other:** dotenv
 ## dependencies--
-express sequelize mysql2 dotenv bcrypt jsonwebtoken uuid
+express sequelize mysql2 dotenv bcrypt jsonwebtoken uuid expressratelimit
 
 
-## core modules
+## 🏦 Why This Project Stands Out
 
-1. User Authentication
-    signup/login
-    jwt based auth
-    password hashing
+* Designed like a **real banking system**
+* Focus on **correctness over UI**
+* Handles concurrency, retries, and failures
+* Admin & audit features inspired by fintech companies
 
-2. wallet system (core)
-    only 1 wallet will be assign to each user
-    wallet fields:
-       - balance
-       - walletid
-       - status(active/blocked)
+---
 
-3. Add money
-        - payment through razorpay
-        - sucess ke baad
-            - wallet balance increase
-            - transaction entry create
+## 📌 Interview Talking Points
 
-4. Transfer money
-    A-->B
+* “Implemented idempotency to ensure retry-safe financial operations”
+* “Used row-level locking to prevent race conditions”
+* “Audit logs are immutable and compliance-ready”
+* “Dashboard APIs use aggregated queries for performance”
 
+---
 
+## 📈 Future Improvements
 
+* Payment gateway integration (Razorpay)
+* Cursor-based pagination
+* Notifications & alerts
+* Distributed locks (Redis)
 
 
 
+## 🧑‍🎓 Author
 
+**Shreyansh Gupta**
+Third Year B.E IT
+Backend / Fintech Enthusiast
 
 
------------------------------------------------
-## database tables
-
-1. user
-| Field     | Purpose          |
-| --------- | ---------------- |
-| id        | User ID          |
-| name      | User name        |
-| email     | Login            |
-| password  | Hashed password  |
-| role      | user / admin     |
-| createdAt | When user joined |
-
-2. wallets
-| Field     | Purpose          |
-| --------- | ---------------- |
-| id        | Wallet ID        |
-| userId    | Owner            |
-| balance   | Current money    |
-| status    | active / blocked |
-| createdAt | Wallet creation  |
-
-3. transaction
-
-Transaction ID: 8f3b2c1e-91b2-4f8e-bb31-5a3d8a8f7b11
-
-What DB uses internally: id = 12451
-UUID is used instead of autoIncrement
-
-Impossible to guess
-Impossible to predict
-Safe to show publicly
-
-This prevents:
-
-transaction enumeration
-fraud
-data leaks
-
-
-
-| Field        | Purpose               |
-| ------------ | --------------------- |
-| id           | Internal ID           |
-| referenceId  | Public transaction ID |
-| fromWalletId | Sender                |
-| toWalletId   | Receiver              |
-| amount       | Money                 |
-| type         | ADD / TRANSFER        |
-| status       | SUCCESS / FAILED      |
-| createdAt    | Time                  |
-
-
-4. audits_logs
-
-| Field       | Purpose           |
-| ----------- | ----------------- |
-| id          | Log ID            |
-| userId      | Who did it        |
-| action      | What happened     |
-| referenceId | Which transaction |
-| ipAddress   | From where        |
-| createdAt   | Time              |
-
-
-
-
-
-## Role of admin
-
-Admin ka kaam money move karna nahi, balki:
-
-👀 Monitor transactions
-🧾 Audit trail dekhna
-🚨 Suspicious activity identify karna
-🔎 Compliance & debugging
-Admin controls system, not users.
-
-<!-- admin api login  -->
-✅ Option 1: Seed / Manual Admin 
-Admin:
-
-DB me manually create hota hai
-Ya ek protected internal API se
-
-✅ Option 2: Protected Admin Signup API (acceptable for college project)
-
-Same signup logic
-BUT: API protected
-
-Only existing admin can create another admin
-
-“Admin accounts are created through protected internal APIs, never public signup.”
-
-“Admins are users with elevated roles, so we model them in the same table with role-based access.”
-
-<!-- why don't we create a seprate db for admin-- -->
-1. single source of truth
-2. easier auth logic ..(jwt me role store hoga)
-3. easy role extension: role=admin| support| auditor
-4. industry standard: banks,saas apps
-
-when to have separate db
-1. when admin is completely indepedent system 
-2. differnt auth provider
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## APIS List
-| Method | API                | Purpose       |
-| ------ | ------------------ | ------------- |
-| POST   | `/api/auth/signup` | Register user |
-| POST   | `/api/auth/login`  | Login         |
-
-
-| Method | API                        | Purpose              |
-| ------ | -------------------------- | -------------------- |
-| GET    | `/api/wallet`              | Get my wallet        |
-| POST   | `/api/wallet/add-money`    | Add money (Razorpay) |
-| POST   | `/api/wallet/transfer`     | Send money           |
-| GET    | `/api/wallet/transactions` | My history           |
-
-
-| Method | API                       | Purpose          |
-| ------ | ------------------------- | ---------------- |
-| GET    | `/api/admin/transactions` | All transactions |
-| GET    | `/api/admin/audit-logs`   | All logs         |
-| POST   | `/api/admin/block-user`   | Block fraud user |
-
-
-
-
-
-
-🏦 What Transfer Money MUST guarantee (bank rules)
-
-When User A sends money to User B:
-
-✅ No double spending
-✅ Balance never goes negative
-✅ Sender & receiver update together
-✅ One failure → everything rollback
-✅ Full audit trail
-
-That’s why we need:
-
-DB transaction (t)
-Row locking
-Transaction + AuditLog entries
-
-## FLOW
-    1. start a session
-    2. lock sender wallet
-    3. lock receriver wallet
-    4.checck balnace
-    5. deduct sedner
-    6. credit receiver\
-    7. create audit log
-    8. commit
