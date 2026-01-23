@@ -1,10 +1,16 @@
 const validator=require("validator");
 
 const validateSignUpData=(req,res,next)=>{
-    const {firstName,lastName,email, password}=req.body;
+    const {firstName,lastName,email, password,phoneNumber}=req.body;
 
-    if (!firstName || !lastName || !email || !password) {
+    if (!firstName || !lastName || !email || !password || !phoneNumber) {
     return res.status(400).json({ message: "All fields are required" });
+    }
+
+    if(!validator.isMobilePhone(phoneNumber,"en-IN")){
+        return res.status(400).json({
+            message:"Enter a 10 digit valid phone number"
+        })
     }
 
     if (!validator.isEmail(email)) {

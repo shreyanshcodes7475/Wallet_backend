@@ -13,7 +13,7 @@ const { loginLimiter } = require("../middlewares/rateLimiter");
 // signup api
 authrouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
     const t=await sequelize.transaction();
-    const { firstName, lastName, email, password } = req.body;
+    const { firstName, lastName, email, password,phoneNumber } = req.body;
     try{
         //check if user exists-
         const existingUser=await User.findOne({where:{email}});
@@ -30,7 +30,8 @@ authrouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
             firstName,
             lastName,
             email,
-            password:passwordHash
+            password:passwordHash,
+            phoneNumber
         },{transaction:t});
 
         await Wallet.create(
