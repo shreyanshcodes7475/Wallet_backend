@@ -41,21 +41,46 @@ walletRouter.get("/balance",auth, async(req,res)=>{
 
 // add money
 walletRouter.post("/add",auth,transferLimiter,async(req,res)=>{
-    const t=await sequelize.transaction();
+    let t;
     try{
-        const {amount}=req.body;
+        const userId=req.user.id;
+        const {amount,idempotencyKey}=req.body;
+
+        if(!idempotencyKey){
+            return res.status(400).json({
+                message:"Idempotent key is required"
+            })
+        }
+
         if(!amount || amount<=0){
             return res.status(400).json({
                 message:"Invalid Amount"
             })
         }
-
+        t=await sequelize.transaction();
         // lock wallet row 
-        const wallet=await Wallet.findOne({
+            const wallet=await Wallet.findOne({
             where:{userId:req.user.id},
-            lock:t.LOCK.UPDATE,
+                lock:t.LOCK.UPDATE,
+                transaction:t
+            })
+        
+        const existingTxn=await Transaction.findOne({
+            where:{
+                idempotencyKey,
+                toWalletId:wallet.id     
+            },
             transaction:t
         })
+
+        if(existingTxn){
+            await t.rollback();
+            return res.status(200).json({
+                message:"Money Added Succesfully",
+                transactionId:existingTxn.id,
+                newBalance:wallet.balance
+            })
+        }
 
         // updating wallet balance-
         wallet.balance=Number(wallet.balance)+Number(amount);
@@ -66,7 +91,8 @@ walletRouter.post("/add",auth,transferLimiter,async(req,res)=>{
             amount,
             type:"ADD",
             status:"SUCCESS",
-            toWalletId:wallet.id
+            toWalletId:wallet.id,
+            idempotencyKey
         },{transaction:t})
 
         // create audit log
