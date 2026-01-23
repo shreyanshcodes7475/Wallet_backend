@@ -103,6 +103,14 @@ authrouter.post("/login",async(req,res)=>{
 
 })
 
+// logout api
+authrouter.post("/logout",async(req,res)=>{
+    res.cookie("token",null,{
+        expires:new Date(Date.now())
+    })
+    res.send("Logout succesfully")
+})
+
 // auth test api
 authrouter.get("/protected",auth,(req,res)=>{
     res.json({
