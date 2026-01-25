@@ -122,9 +122,11 @@ walletRouter.post("/add",auth,transferLimiter,async(req,res)=>{
 
 // Transfer money api
 walletRouter.post("/transfer",auth, transferLimiter,async(req,res)=>{
+    let t;
 
     try{
-        const {toUserId,amount,idempotencyKey}=req.body;
+        const {phoneNumber,amount,idempotencyKey}=req.body;
+
         const fromUser=req.user;
 
         if(!idempotencyKey){
@@ -133,11 +135,28 @@ walletRouter.post("/transfer",auth, transferLimiter,async(req,res)=>{
             })
         }
 
-        if(!toUserId || !amount || amount<=0){
+        if(!phoneNumber || !amount || amount<=0){
             return res.status(400).json({
                 message:"Invalid Request"
             })
         }
+        // const normalizedPhone = phoneNumber.replace(/\D/g, "");
+
+        t=await sequelize.transaction();
+
+        const toUser= await User.findOne({
+            where:{phoneNumber},
+            transaction:t
+        })
+        const toUserId=toUser.id;
+
+        if (!toUser) {
+            await t.rollback();
+            return res.status(404).json({
+                message: "Receiver not found"
+            });
+        }
+
 
         if(Number(toUserId)==Number(fromUser.id)){
             return res.status(400).json({
@@ -145,7 +164,6 @@ walletRouter.post("/transfer",auth, transferLimiter,async(req,res)=>{
             })
         }
 
-        const t=await sequelize.transaction();
         
         // lock sender wallet 
         const senderWallet=await Wallet.findOne({
