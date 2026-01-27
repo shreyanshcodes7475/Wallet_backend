@@ -393,7 +393,7 @@ walletRouter.post("/reset-pin", auth, async (req, res) => {
 
     const hashedPin = await bcrypt.hash(newPin, 12);
     user.walletPin = hashedPin;
-    await user.save({ transaction: t });   // ✅ await added
+    await user.save({ transaction: t });   
 
     await AuditLog.create({
       userId: user.id,
