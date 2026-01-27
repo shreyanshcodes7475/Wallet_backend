@@ -19,7 +19,16 @@ const transferLimiter=rateLimit({
     }
 })
 
+// pin limmter
+
+const pinLimiter=rateLimit({
+    windowMs:5*60*1000, // 5min
+    max:5,
+    message:"Too many incorrect pin attempts. Try later" 
+})
+
 module.exports={
     loginLimiter,
-    transferLimiter
+    transferLimiter,
+    pinLimiter
 }

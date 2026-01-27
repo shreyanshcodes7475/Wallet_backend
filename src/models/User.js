@@ -33,6 +33,15 @@ const User=sequelize.define("User",{
         unique:true,
         allowNull:false,
     },
+    walletPin:{
+        type:DataTypes.STRING, //hashed
+        allowNull:true
+
+    },
+    walletPinSet:{
+        type:DataTypes.BOOLEAN,
+        defaultValue:false
+    },
 
     role:{
         type:DataTypes.ENUM("user", "admin"),

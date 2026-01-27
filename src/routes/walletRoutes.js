@@ -6,20 +6,21 @@ const { Wallet, Transaction, AuditLog } = require("../models");
 const express=require("express");
 const walletRouter=express.Router();
 const { Op } = require("sequelize");
-const { transferLimiter } = require("../middlewares/rateLimiter");
+const { transferLimiter, pinLimiter } = require("../middlewares/rateLimiter");
+const {verifyWalletPin}=require("../middlewares/verifyWalletPin")
+const bcrypt=require("bcrypt");
 
- 
 
 
 // get balance
-walletRouter.get("/balance",auth, async(req,res)=>{
+walletRouter.post("/balance",auth,transferLimiter,pinLimiter,verifyWalletPin ,async(req,res)=>{
     try{
         const loggedInUser=req.user;
         const wallet=await Wallet.findOne({
             where:{userId:loggedInUser.id}
         })
         if(!wallet){
-            res.status(401).json({
+             return res.status(401).json({
                 message:"No wallet found"
             })
         }
@@ -40,7 +41,7 @@ walletRouter.get("/balance",auth, async(req,res)=>{
 })
 
 // add money
-walletRouter.post("/add",auth,transferLimiter,async(req,res)=>{
+walletRouter.post("/add",auth,transferLimiter,pinLimiter,verifyWalletPin,async(req,res)=>{
     let t;
     try{
         const userId=req.user.id;
@@ -83,7 +84,7 @@ walletRouter.post("/add",auth,transferLimiter,async(req,res)=>{
         }
 
         // updating wallet balance-
-        wallet.balance=Number(wallet.balance)+Number(amount);
+        wallet.balance = parseFloat(wallet.balance) + parseFloat(amount);
         await wallet.save({transaction:t});
 
         // creating a trnsaction record:
@@ -112,7 +113,7 @@ walletRouter.post("/add",auth,transferLimiter,async(req,res)=>{
 
     }
     catch(err){
-        await t.rollback();
+        if(t) await t.rollback();
         res.status(500).json({
             message:"Add money process failed",
             error:err.message
@@ -121,12 +122,12 @@ walletRouter.post("/add",auth,transferLimiter,async(req,res)=>{
 })
 
 // Transfer money api
-walletRouter.post("/transfer",auth, transferLimiter,async(req,res)=>{
+walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,async(req,res)=>{
     let t;
 
     try{
         const {phoneNumber,amount,idempotencyKey}=req.body;
-
+        const amt=parseFloat(amount);
         const fromUser=req.user;
 
         if(!idempotencyKey){
@@ -134,31 +135,37 @@ walletRouter.post("/transfer",auth, transferLimiter,async(req,res)=>{
                 message:"idempotency key is required"
             })
         }
-
-        if(!phoneNumber || !amount || amount<=0){
+        if(isNaN(amt) || amt<=0){
             return res.status(400).json({
-                message:"Invalid Request"
+                message:"Invalid amount"
             })
         }
-        // const normalizedPhone = phoneNumber.replace(/\D/g, "");
+
+        if(!phoneNumber){
+            return res.status(400).json({
+                message:"Phone Number required"
+            })
+        }
+        const normalizedPhone = phoneNumber.replace(/\D/g, "");
 
         t=await sequelize.transaction();
 
         const toUser= await User.findOne({
-            where:{phoneNumber},
+            where:{phoneNumber:normalizedPhone},
             transaction:t
         })
-        const toUserId=toUser.id;
-
+        
         if (!toUser) {
             await t.rollback();
             return res.status(404).json({
-                message: "Receiver not found"
-            });
+            message: "Receiver not found"
+        });
         }
+        const toUserId=toUser.id;
 
 
         if(Number(toUserId)==Number(fromUser.id)){
+            await t.rollback();
             return res.status(400).json({
                 message:"Cannot transfer to self"
             })
@@ -196,7 +203,7 @@ walletRouter.post("/transfer",auth, transferLimiter,async(req,res)=>{
             })
         }
 
-        if(Number(senderWallet.balance)<Number(amount)){
+        if(parseFloat(senderWallet.balance)<amt){
             await t.rollback();
             return res.status(400).json({
                 message:"Insufficient balance"
@@ -215,15 +222,15 @@ walletRouter.post("/transfer",auth, transferLimiter,async(req,res)=>{
         }
 
         // updating balance
-        senderWallet.balance=Number(senderWallet.balance)-Number(amount)
-        receiverWallet.balance=Number(receiverWallet.balance)+Number(amount);
+        senderWallet.balance = (parseFloat(senderWallet.balance) - amt).toFixed(2);
+        receiverWallet.balance = (parseFloat(receiverWallet.balance) + amt).toFixed(2);
 
         await senderWallet.save({transaction:t});
         await receiverWallet.save({transaction:t});
 
         // create a transaction record
         const txn=await Transaction.create({
-            amount,
+            amount:amt,
             type:"TRANSFER",
             status:"SUCCESS",
             fromWalletId:senderWallet.id,
@@ -248,10 +255,6 @@ walletRouter.post("/transfer",auth, transferLimiter,async(req,res)=>{
             ipAddress:req.ip
         },{transaction:t})
 
-        console.log("Sender:", senderWallet.balance);
-        console.log("Receiver:", receiverWallet.balance);
-
-
         await t.commit();
         res.json({
             message:"Transfer sucessful",
@@ -260,13 +263,159 @@ walletRouter.post("/transfer",auth, transferLimiter,async(req,res)=>{
 
     }
     catch(err){
-        await t.rollback();
+        if(t) await t.rollback();
         res.status(500).json({
             message:"something went wrong! Transfer Money process failed , Your money isn't deducted",
             error:err.message
         })
     }
 })
+
+// set wallet pin
+walletRouter.post("/set-pin", auth, async(req,res)=>{
+    const t=await sequelize.transaction();
+    try{    
+        const walletPin = req.body?.walletPin?.toString().trim();
+        
+        const user=await User.findByPk(req.user.id,{
+            transaction:t,
+            lock:t.LOCK.UPDATE
+        })
+        if (!user) {
+        await t.rollback();
+        return res.status(404).json({ message: "User not found" });
+        }
+
+        if(!walletPin){
+            await t.rollback();
+            return res.status(400).json({
+                message:"Pin is required"
+            })
+        }
+        
+        if(!/^\d{6}$/.test(walletPin)){
+            await t.rollback();
+            return res.status(400).json({
+                message:"Pin must be exactly 6 digits"
+            })
+        }
+
+        if(user.walletPinSet){
+            await t.rollback();
+            return res.status(400).json({
+                message:"wallet pin already set"
+            })
+        }
+
+        const hashedPin=await bcrypt.hash(walletPin,12);
+
+        user.walletPin=hashedPin;
+        user.walletPinSet=true;
+        await user.save({transaction:t})
+
+        await AuditLog.create({
+            userId:user.id,
+            action:"SET_WALLET_PIN",
+            ipAddress:req.ip,
+            },
+        {transaction:t})
+
+        await t.commit();
+
+        res.status(200).json({
+            message:"wallet pin set successfully"
+        })
+
+    }   
+    catch(err){
+        if(t) await t.rollback();                                                                                                                                                             
+        res.status(500).json({
+            message:"Failed to set wallet pin",
+            error:err.message
+        })
+    }
+})
+
+// change wallet pin
+walletRouter.post("/reset-pin", auth, async (req, res) => {
+  let t;
+  try {
+    t = await sequelize.transaction();
+
+    const oldPin = req.body?.oldPin?.toString().trim();
+    const newPin = req.body?.newPin?.toString().trim();
+
+    if (!oldPin || !newPin) {
+      await t.rollback();
+      return res.status(400).json({
+        message: "Both old and new PIN are required"
+      });
+    }
+
+    if (oldPin === newPin) {
+      await t.rollback();
+      return res.status(400).json({
+        message: "New PIN must be different"
+      });
+    }
+
+    if (!/^\d{6}$/.test(oldPin) || !/^\d{6}$/.test(newPin)) {
+      await t.rollback();
+      return res.status(400).json({
+        message: "PIN must be exactly 6 digits"
+      });
+    }
+
+    const user = await User.findByPk(req.user.id, {
+      transaction: t,
+      lock: t.LOCK.UPDATE
+    });
+
+    if (!user) {
+      await t.rollback();
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.walletPinSet) {
+      await t.rollback();
+      return res.status(403).json({
+        message: "Please set wallet PIN first"
+      });
+    }
+
+    const isMatch = await bcrypt.compare(oldPin, user.walletPin);
+    if (!isMatch) {
+      await t.rollback();
+      return res.status(401).json({
+        message: "Old PIN is incorrect"
+      });
+    }
+
+    const hashedPin = await bcrypt.hash(newPin, 12);
+    user.walletPin = hashedPin;
+    await user.save({ transaction: t });   // ✅ await added
+
+    await AuditLog.create({
+      userId: user.id,
+      action: "RESET_WALLET_PIN",
+      ipAddress: req.ip
+    }, { transaction: t });
+
+    await t.commit();
+
+    res.status(200).json({
+      message: "Wallet PIN changed successfully"
+    });
+
+  } catch (err) {
+    if (t) await t.rollback();
+    res.status(500).json({
+      message: "Resetting wallet PIN failed"
+    });
+  }
+});
+
+
 
 // transaction history api
 walletRouter.get("/transaction",auth,async(req,res)=>{
