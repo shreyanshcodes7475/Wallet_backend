@@ -81,6 +81,18 @@ Admin is just a user with higher privileges.
 | transactions | All money movement |
 | audit_logs   | All actions        |
 
+ledger_entries
+| field           | meaning                     |
+| --------------- | --------------------------- |
+| id              | entry id                    |
+| debitAccountId  | money from                  |
+| creditAccountId | money to                    |
+| amount          | how much                    |
+| type            | TRANSFER / DEPOSIT / REFUND |
+| referenceId     | transaction id              |
+| createdAt       | timestamp                   |
+
+
 Banks follow:
 
 Single source of truth
@@ -276,5 +288,90 @@ it will provide
 
 ## Rate Limiting
 Ek user / IP kitni baar API hit kar sakta hai ek fixed time me
+
+##  difference between wallet system and payment gateways
+| Your Wallet           | Payment Gateway          |
+| --------------------- | ------------------------ |
+| Stores balance        | Talks to banks/cards     |
+| Handles transfers     | Processes real payments  |
+| Ledger & transactions | Collects money from user |
+| Internal money system | Bridge to outside world  |
+
+Without gateway:
+
+User clicks add money → you do wallet.balance += 500 ❌ fake
+With gateway:
+
+User pays using card/UPI → gateway confirms → THEN you credit wallet ✅ real flow
+
+
+| Dummy                 | Realistic                       |
+| --------------------- | ------------------------------- |
+| Money added by button | Money added by external payment |
+| No verification       | Signature verification          |
+| Instant credit        | Async confirmation              |
+| No external system    | Gateway dependency              |
+
+
+## difference between web hook and payment verification api
+1️⃣ PAYMENT VERIFICATION API (Client → Server flow)
+Flow:
+
+1. User completes payment on gateway page
+2. Gateway redirects user back to your frontend
+3. Frontend receives:(paymentId, orderId, signature)
+4. Frontend sends this to your backend:
+5. Backend verifies signature using gateway secret
+If valid → mark order PAID → credit wallet
+
+2️⃣ WEBHOOK (Gateway → Server flow)
+Flow:
+
+1. Payment succeeds at gateway
+2. Gateway sends server-to-server request to your backend  (POST /webhook)
+3. Payload contains payment info
+4. You verify webhook signature
+5. Update order + wallet
+
+
+
+🏦 What Is a Ledger System
+
+Ledger = financial history book
+
+Instead of changing balance directly, you record movements of money.
+
+Every money movement has two sides:
+Money goes out of one account
+Money comes into another account
+
+This is called Double Entry Accounting
+Balance = Total Credits - Total Debits
+| Without Ledger       | With Ledger         |
+| -------------------- | ------------------- |
+| Balance can be wrong | Ledger never lies   |
+| No trace             | Full money trail    |
+| Hard to debug        | Every rupee tracked |
+| Toy system           | Bank-style system   |
+
+
+## Rate limiiter vs wallet lock
+| Feature         | Rate Limiter                     | Wallet Lock (`walletLockedUntil`, `failedPinAttempts`) |
+| --------------- | -------------------------------- | ------------------------------------------------------ |
+| Works at        | **API / request level**          | **User account level**                                 |
+| Scope           | Per IP / per route / per session | Specific user wallet                                   |
+| Purpose         | Stop spam / brute force          | Stop risky user activity                               |
+| Duration        | Seconds / minutes                | Minutes / hours                                        |
+| Stored in DB?   | ❌ Usually memory/Redis           | ✅ Yes                                                  |
+| Financial rule? | ❌ No                             | ✅ Yes                                                  |
+
+Rate limiiter:Protects system from:(Bots,)
+
+
+
+
+
+Rapid PIN tries
+
 
 ------------------------------------------------------------------

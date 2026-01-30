@@ -42,6 +42,26 @@ const User=sequelize.define("User",{
         type:DataTypes.BOOLEAN,
         defaultValue:false
     },
+    
+    failedPinAttempts:{
+        type:DataTypes.INTEGER,
+        defaultValue:0
+    },
+
+    walletLockedUntil:{
+        type:DataTypes.DATE
+    },
+
+    kycStatus:{
+        type:DataTypes.ENUM('PENDING','VERIFIED','REJECTED'),
+        defaultValue:"PENDING",
+        allowNull:false
+    },
+
+    riskScore:{
+        type:DataTypes.INTEGER,
+        defaultValue:0
+    },
 
     role:{
         type:DataTypes.ENUM("user", "admin"),

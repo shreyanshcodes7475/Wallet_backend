@@ -14,6 +14,24 @@ const AuditLog=sequelize.define("AuditLog",{
         type:DataTypes.STRING,
         allowNull:false,
     },
+    entityType:{
+        type:DataTypes.STRING
+    },
+
+    entityID:{
+        type:DataTypes.BIGINT
+    },
+
+    beforeState:{
+        type:DataTypes.JSON
+    },
+    afterState:{
+        type:DataTypes.JSON
+    },
+
+    deviceInfo:{
+        type:DataTypes.STRING
+    },
     
     ipAddress:{
         type:DataTypes.STRING,

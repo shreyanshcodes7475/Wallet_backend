@@ -1,5 +1,7 @@
 const {DataTypes}=require("sequelize")
 const {sequelize}=require("../config/database");
+const { BIGINT } = require("sequelize");
+
 
 
 const Transaction=sequelize.define("Transaction",{
@@ -8,7 +10,48 @@ const Transaction=sequelize.define("Transaction",{
         autoIncrement:true,
         primaryKey:true
     },
+    fromWalletId:{
+        type:DataTypes.BIGINT,
+        allowNull:false,
+        references:{
+            model:"wallets",
+            key:"id"
+        },
+        onDelete:"RESTRICT",
+        onUpdate:"CASCADE"
+    },
+    toWalletId:{
+        type:DataTypes.BIGINT,
+        allowNull:false,
+        references:{
+            model:"wallets",
+            key:"id"
+        },
+        onDelete:"RESTRICT",
+        onUpdate:"CASCADE"
+    },
 
+    paymentOrderId:{
+        type:DataTypes.BIGINT,
+        references:{
+            model:"paymentorders",
+            key:"id"
+        }
+    },
+
+    gatewayOrderId:{
+        type:DataTypes.STRING,
+        allowNull:false
+    },
+
+    description:{
+        type:DataTypes.STRING
+    },
+
+    metadata:{
+        type:DataTypes.JSON
+    },
+    
     //Transaction ID: 8f3b2c1e-91b2-4f8e-bb31-5a3d8a8f7b11
     referenceId:{
         type:DataTypes.UUID,
@@ -33,8 +76,8 @@ const Transaction=sequelize.define("Transaction",{
     },
 
     status:{
-        type:DataTypes.ENUM("SUCCESS", "FAILED", "PENDING"),
-        defaultValue:"PENDING"
+        type:DataTypes.ENUM("CREATED", "PENDING", "PROCESSING", "SUCCESS", "FAILED", "REVERSED", "EXPIRED"),
+        defaultValue:"CREATED"
     }
 },{
     tableName:"transactions",
