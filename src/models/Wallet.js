@@ -20,14 +20,14 @@ const Wallet=sequelize.define("Wallet",{
         onUpdate:"cascade"
 
     },
-    balance:{
+    totalBalance:{
         type:DataTypes.DECIMAL(15,2),
         defaultValue:0.00
     },
-    
+
     availableBalance:{
         type:DataTypes.DECIMAL(15,2),
-        defaultValue:0.00
+        defaultValue:0
     },
 
     heldBalance:{

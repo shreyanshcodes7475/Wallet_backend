@@ -19,7 +19,7 @@ const Ledger=sequelize.define("Ledger",{
         onDelete:"RESTRICT"
 
     },
-    debitwalletId:{
+    debitWalletId:{
         type:DataTypes.BIGINT,
         allowNull:false,
         references:{
@@ -29,7 +29,7 @@ const Ledger=sequelize.define("Ledger",{
         onDelete:"RESTRICT",
         onUpdate:"CASCADE"
     },
-    creditAccountId:{
+    creditWalletId:{
         type:DataTypes.BIGINT,
         allowNull:false,
         references:{

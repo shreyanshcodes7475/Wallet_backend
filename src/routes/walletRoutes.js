@@ -1,6 +1,6 @@
 const { NUMBER, Model } = require("sequelize");
 const {sequelize} = require("../config/database");
-const{User}=require("../models")
+const{User, Ledger, PaymentOrder}=require("../models")
 const { auth } = require("../middlewares/auth");
 const { Wallet, Transaction, AuditLog } = require("../models");
 const express=require("express");
@@ -9,6 +9,7 @@ const { Op } = require("sequelize");
 const { transferLimiter, pinLimiter } = require("../middlewares/rateLimiter");
 const {verifyWalletPin}=require("../middlewares/verifyWalletPin")
 const bcrypt=require("bcrypt");
+const { FLOAT } = require("sequelize");
 
 
 
@@ -27,7 +28,7 @@ walletRouter.post("/balance",auth,transferLimiter,pinLimiter,verifyWalletPin ,as
 
         res.json({
             message:"Balance info",
-            balance:wallet.balance,
+            balance:wallet.availableBalance,
             status:wallet.status
         })
     }
@@ -41,11 +42,13 @@ walletRouter.post("/balance",auth,transferLimiter,pinLimiter,verifyWalletPin ,as
 })
 
 // add money
-walletRouter.post("/add",auth,transferLimiter,pinLimiter,verifyWalletPin,async(req,res)=>{
+walletRouter.post("/add",auth,verifyWalletPin,async(req,res)=>{
     let t;
+    let txn;
     try{
         const userId=req.user.id;
         const {amount,idempotencyKey}=req.body;
+        const amt=Number(amount);
 
         if(!idempotencyKey){
             return res.status(400).json({
@@ -53,7 +56,7 @@ walletRouter.post("/add",auth,transferLimiter,pinLimiter,verifyWalletPin,async(r
             })
         }
 
-        if(!amount || amount<=0){
+        if(!amt || amt<=0){
             return res.status(400).json({
                 message:"Invalid Amount"
             })
@@ -65,9 +68,11 @@ walletRouter.post("/add",auth,transferLimiter,pinLimiter,verifyWalletPin,async(r
                 lock:t.LOCK.UPDATE,
                 transaction:t
             })
+
+        const earlierBalance=Number(wallet.availableBalance);
         
         const existingTxn=await Transaction.findOne({
-            where:{
+            where:{ 
                 idempotencyKey,
                 toWalletId:wallet.id     
             },
@@ -79,28 +84,54 @@ walletRouter.post("/add",auth,transferLimiter,pinLimiter,verifyWalletPin,async(r
             return res.status(200).json({
                 message:"Money Added Succesfully",
                 transactionId:existingTxn.id,
-                newBalance:wallet.balance
+                newBalance:wallet.availableBalance
             })
         }
 
+
+
+        
+        // creating a trnsaction record:
+        txn=await Transaction.create({
+            amount:amt,
+            type:"ADD",
+            status:"CREATED",
+            fromWalletId: Number(process.env.SYSTEM_WALLET_ID),
+            toWalletId:wallet.id,
+            idempotencyKey,
+            paymentOrderId: Number(process.env.SYSTEM_PAYMENT_ORDER_ID),
+            gatewayOrderId: Number(process.env.SYSTEM_GATEWAY_ORDER_ID)
+        },{transaction:t})
+        
+        // Ledger entry(system->user)
+        await Ledger.create({
+            transactionId:txn.id,
+            debitWalletId:Number(process.env.SYSTEM_WALLET_ID),
+            creditWalletId:wallet.id,
+            amount,
+            type:"DEPOSIT"
+        },{transaction:t})
+        
+        
         // updating wallet balance-
-        wallet.balance = parseFloat(wallet.balance) + parseFloat(amount);
+        wallet.availableBalance = Number(wallet.availableBalance) + amt;
+        wallet.totalBalance=wallet.availableBalance+Number(wallet.heldBalance)
         await wallet.save({transaction:t});
 
-        // creating a trnsaction record:
-        const txn=await Transaction.create({
-            amount,
-            type:"ADD",
-            status:"SUCCESS",
-            toWalletId:wallet.id,
-            idempotencyKey
-        },{transaction:t})
+        // mark transaction success
+        txn.status="SUCCESS"
+        await txn.save({transaction:t});
+
 
         // create audit log
         await AuditLog.create({
             userId:req.user.id,
             transactionId:txn.id,
-            action: "ADD_MONEY",
+            action: "DEPOSIT_SUCCESS",
+            entityType:"WALLET",
+            entityId:wallet.id,
+            beforeState:{availableBalance:earlierBalance},
+            afterState:{availableBalance:wallet.availableBalance},
             ipAddress:req.ip
         },{transaction:t})
 
@@ -108,12 +139,18 @@ walletRouter.post("/add",auth,transferLimiter,pinLimiter,verifyWalletPin,async(r
 
         res.status(200).json({
             message:"Money Added Succesfully",
-            newBalance:wallet.balance
+            newBalance:wallet.availableBalance
         })
 
     }
     catch(err){
         if(t) await t.rollback();
+        if (txn) {
+        await Transaction.update(
+          { status: "FAILED" },
+          { where: { id: txn.id } }
+        );
+    }
         res.status(500).json({
             message:"Add money process failed",
             error:err.message
@@ -124,10 +161,11 @@ walletRouter.post("/add",auth,transferLimiter,pinLimiter,verifyWalletPin,async(r
 // Transfer money api
 walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,async(req,res)=>{
     let t;
+    let txn;
 
     try{
         const {phoneNumber,amount,idempotencyKey}=req.body;
-        const amt=parseFloat(amount);
+        const amt=Number(amount);
         const fromUser=req.user;
 
         if(!idempotencyKey){
@@ -203,7 +241,7 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
             })
         }
 
-        if(parseFloat(senderWallet.balance)<amt){
+        if(Number(senderWallet.availableBalance)<amt){
             await t.rollback();
             return res.status(400).json({
                 message:"Insufficient balance"
@@ -220,23 +258,60 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
         if(!receiverWallet){
             throw new Error("Receiver wallet not found")
         }
+        
+        // create a transaction record
+        txn=await Transaction.create({
+            amount:amt,
+            type:"TRANSFER",
+            status:"CREATED",
+            fromWalletId:senderWallet.id,
+            toWalletId:receiverWallet.id,
+            idempotencyKey,
+            paymentOrderId: Number(process.env.SYSTEM_PAYMENT_ORDER_ID),
+            gatewayOrderId: Number(process.env.SYSTEM_GATEWAY_ORDER_ID)
+        },{transaction:t})
 
-        // updating balance
-        senderWallet.balance = (parseFloat(senderWallet.balance) - amt).toFixed(2);
-        receiverWallet.balance = (parseFloat(receiverWallet.balance) + amt).toFixed(2);
+        // before state
+        const sAvail = Number(senderWallet.availableBalance);
+        const sHeld  = Number(senderWallet.heldBalance);
+        const rAvail = Number(receiverWallet.availableBalance);
+        const rHeld  = Number(receiverWallet.heldBalance);
+
+
+        // move to held state
+        senderWallet.availableBalance = sAvail-amt
+        senderWallet.heldBalance=sHeld+amt;
+        senderWallet.totalBalance=senderWallet.availableBalance+senderWallet.heldBalance;
+        await senderWallet.save({transaction:t});
+
+        txn.status = "PROCESSING";
+        await txn.save({ transaction: t });
+
+
+
+        // ledger entry
+        await Ledger.create({
+            transactionId:txn.id,
+            debitWalletId:senderWallet.id,
+            creditWalletId:receiverWallet.id,
+            amount:amt,
+            type:"TRANSFER"
+
+        },{transaction:t})
+
+
+        // finalize balance
+        senderWallet.heldBalance-=amt;
+        senderWallet.totalBalance=senderWallet.availableBalance+ senderWallet.heldBalance;
+        
+        receiverWallet.availableBalance=rAvail+amt
+        receiverWallet.totalBalance=receiverWallet.availableBalance +rHeld;
 
         await senderWallet.save({transaction:t});
         await receiverWallet.save({transaction:t});
 
-        // create a transaction record
-        const txn=await Transaction.create({
-            amount:amt,
-            type:"TRANSFER",
-            status:"SUCCESS",
-            fromWalletId:senderWallet.id,
-            toWalletId:receiverWallet.id,
-            idempotencyKey
-        },{transaction:t})
+        txn.status = "SUCCESS";
+        await txn.save({ transaction: t });
 
 
         // Audit logs
@@ -244,6 +319,10 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
             userId:fromUser.id,
             transactionId:txn.id,
             action:"TRANSFER_SENT",
+            entityType:"WALLET",
+            entityId:senderWallet.id,
+            beforeState: { availableBalance: sAvail },
+            afterState: { availableBalance: senderWallet.availableBalance },
             ipAddress:req.ip
         },{transaction:t})
 
@@ -252,6 +331,10 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
             userId:toUserId,
             transactionId:txn.id,
             action:"TRANSFER_RECEIVED",
+            entityType:"WALLET",
+            entityId:receiverWallet.id,
+            beforeState: { availableBalance: rAvail },
+            afterState: { availableBalance: receiverWallet.availableBalance },
             ipAddress:req.ip
         },{transaction:t})
 
@@ -264,6 +347,12 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
     }
     catch(err){
         if(t) await t.rollback();
+        if (txn) {
+        await Transaction.update(
+          { status: "FAILED" },
+          { where: { id: txn.id } }
+        );
+        }
         res.status(500).json({
             message:"something went wrong! Transfer Money process failed , Your money isn't deducted",
             error:err.message

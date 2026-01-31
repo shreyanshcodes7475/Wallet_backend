@@ -10,6 +10,27 @@ const AuditLog=sequelize.define("AuditLog",{
         primaryKey:true,  
     },
 
+    userId:{
+        type:DataTypes.BIGINT,
+        allowNull:false,
+        references:{
+            model:"users",
+            key:"id"
+        },
+        onDelete:"RESTRICT",
+        onUpdate:"CASCADE"
+    },
+    transactionId:{
+        type:DataTypes.BIGINT,
+        references:{
+            model:"transactions",
+            key:"id"
+        },
+    
+        onUpdate:"CASCADE",
+        onDelete:"RESTRICT"
+    },
+
     action:{
         type:DataTypes.STRING,
         allowNull:false,
@@ -18,7 +39,7 @@ const AuditLog=sequelize.define("AuditLog",{
         type:DataTypes.STRING
     },
 
-    entityID:{
+    entityId:{
         type:DataTypes.BIGINT
     },
 
@@ -30,7 +51,7 @@ const AuditLog=sequelize.define("AuditLog",{
     },
 
     deviceInfo:{
-        type:DataTypes.STRING
+        type:DataTypes.JSON
     },
     
     ipAddress:{

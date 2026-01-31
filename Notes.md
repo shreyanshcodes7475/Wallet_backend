@@ -367,11 +367,17 @@ Balance = Total Credits - Total Debits
 
 Rate limiiter:Protects system from:(Bots,)
 
+## Money flow
+Transaction (CREATED)
+      ↓
+Move money to HELD
+      ↓
+Ledger entry
+      ↓
+Finalize balances
+      ↓
+Transaction (SUCCESS)
 
-
-
-
-Rapid PIN tries
 
 
 ------------------------------------------------------------------
