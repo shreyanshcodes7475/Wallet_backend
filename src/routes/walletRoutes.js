@@ -50,15 +50,16 @@ walletRouter.post("/add",auth,verifyWalletPin,async(req,res)=>{
         const {amount,idempotencyKey}=req.body;
         const amt=Number(amount);
 
-        if(!idempotencyKey){
+        
+        if(!amt || amt<=0){
             return res.status(400).json({
-                message:"Idempotent key is required"
+             message:"Invalid Amount"
             })
         }
 
-        if(!amt || amt<=0){
+        if(!idempotencyKey){
             return res.status(400).json({
-                message:"Invalid Amount"
+                message:"Idempotent key is required"
             })
         }
         t=await sequelize.transaction();
@@ -168,11 +169,6 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
         const amt=Number(amount);
         const fromUser=req.user;
 
-        if(!idempotencyKey){
-            return res.status(400).json({
-                message:"idempotency key is required"
-            })
-        }
         if(isNaN(amt) || amt<=0){
             return res.status(400).json({
                 message:"Invalid amount"
@@ -184,9 +180,11 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
                 message:"Phone Number required"
             })
         }
-        const normalizedPhone = phoneNumber.replace(/\D/g, "");
 
         t=await sequelize.transaction();
+        const normalizedPhone = phoneNumber.replace(/\D/g, "");
+
+
 
         const toUser= await User.findOne({
             where:{phoneNumber:normalizedPhone},
@@ -199,9 +197,9 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
             message: "Receiver not found"
         });
         }
+        
+
         const toUserId=toUser.id;
-
-
         if(Number(toUserId)==Number(fromUser.id)){
             await t.rollback();
             return res.status(400).json({
@@ -209,7 +207,6 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
             })
         }
 
-        
         // lock sender wallet 
         const senderWallet=await Wallet.findOne({
             where:{userId:fromUser.id},
@@ -220,6 +217,20 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
         // checking fromUser balance
         if(!senderWallet){
             throw new Error("Sender wallet does not exist")
+        }
+
+        if(Number(senderWallet.availableBalance)<amt){
+            await t.rollback();
+            return res.status(400).json({
+                message:"Insufficient balance"
+            })
+        }
+
+
+        if(!idempotencyKey){
+            return res.status(400).json({
+                message:"idempotency key is required"
+            })
         }
 
 
@@ -241,12 +252,6 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
             })
         }
 
-        if(Number(senderWallet.availableBalance)<amt){
-            await t.rollback();
-            return res.status(400).json({
-                message:"Insufficient balance"
-            })
-        }
 
         // lock receiver wallet
         const receiverWallet=await Wallet.findOne({

@@ -378,6 +378,12 @@ Finalize balances
       ↓
 Transaction (SUCCESS)
 
+Tumhara wallet system = bank engine
+Razorpay = money entry gate
+User → Razorpay page pe pay karega  
+Razorpay confirm karega payment  
+Tab hi tum wallet balance badhaoge
+
 
 
 ------------------------------------------------------------------
