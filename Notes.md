@@ -384,6 +384,56 @@ User → Razorpay page pe pay karega
 Razorpay confirm karega payment  
 Tab hi tum wallet balance badhaoge
 
+## razorpay money flow
+1️⃣ User clicks "Add Money"
+        ↓
+2️⃣ Your backend creates:
+      • Razorpay Order
+      • DB PaymentOrder (status = CREATED)
+        ↓
+3️⃣ Order ID frontend ko milta hai
+        ↓
+4️⃣ Frontend Razorpay checkout open karta hai
+        ↓
+5️⃣ User pays on Razorpay page
+        ↓
+6️⃣ Razorpay says: PAYMENT SUCCESS
+        ↓
+7️⃣ Frontend sends SUCCESS to your backend
+        ↓
+8️⃣ Backend verifies payment
+        ↓
+9️⃣ THEN wallet balance update + txn create
+
+| Thing          | Meaning                                       |
+| -------------- | --------------------------------------------- |
+| **Order ID**   | Payment start hone se pehle banta hai         |
+| **Payment ID** | Jab user actually pay karta hai tab banta hai |
+
+| ID         | Use                      |
+| ---------- | ------------------------ |
+| Order ID   | Track payment attempt    |
+| Payment ID | Confirm money received   |
+| Signature  | Verify payment legit hai |
+
+wallet balance will get updated after getting payment order id
+Webhook/verification time
+
+Later, jab payment success verify karoge:
+
+razorpay_order_id se PaymentOrder find karo
+
+Uska userId lo
+
+Us user ke wallet me credit karo
+
+## Backend ne ab tak sirf bola:
+"Ye raha order ID, jaake payment le aa."
+Payment lena Razorpay checkout ka kaam hai.
+
+
+
+
 
 
 ------------------------------------------------------------------
