@@ -1,6 +1,6 @@
 const express=require("express");
 const { validate } = require("uuid");
-const authrouter=express.Router();
+const authRouter=express.Router();
 const {validateSignUpData}=require("../middlewares/validateSignUpData")
 const bcrypt=require("bcrypt");
 const { User, Wallet } = require("../models");
@@ -11,7 +11,7 @@ const { loginLimiter } = require("../middlewares/rateLimiter");
 
 
 // signup api
-authrouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
+authRouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
     const t=await sequelize.transaction();
     const { firstName, lastName, email, password,phoneNumber } = req.body;
     try{
@@ -56,7 +56,7 @@ authrouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
 })
 
 // Login apo
-authrouter.post("/login",async(req,res)=>{
+authRouter.post("/login",async(req,res)=>{
     try{
         const {email,password}=req.body;
         if(!email || !password){
@@ -105,7 +105,7 @@ authrouter.post("/login",async(req,res)=>{
 })
 
 // logout api
-authrouter.post("/logout",async(req,res)=>{
+authRouter.post("/logout",async(req,res)=>{
     res.cookie("token",null,{
         expires:new Date(Date.now())
     })
@@ -113,7 +113,7 @@ authrouter.post("/logout",async(req,res)=>{
 })
 
 // auth test api
-authrouter.get("/protected",auth,(req,res)=>{
+authRouter.get("/protected",auth,(req,res)=>{
     res.json({
         message:"You are logged in",
         user:req.user.email
@@ -121,4 +121,4 @@ authrouter.get("/protected",auth,(req,res)=>{
 })
 
 
-module.exports={authrouter};
+module.exports={authRouter};

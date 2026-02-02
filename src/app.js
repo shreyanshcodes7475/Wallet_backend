@@ -1,10 +1,11 @@
 const express=require("express");
-const { authrouter } = require("./routes/authRoutes");
+const { authRouter } = require("./routes/authRoutes");
 const cookieParser = require("cookie-parser");
 const { walletRouter } = require("./routes/walletRoutes");
 const {adminRouter}=require("./routes/adminRoutes");
 const app=express();
 const cors=require("cors");
+const { paymentRouter } = require("./routes/paymentRoutes");
 app.use(cookieParser())
 app.use(express.json());
 
@@ -14,9 +15,10 @@ app.use(cors({
 }))
 
 app.use("/api/admin", adminRouter);
-app.use("/api/auth", authrouter);
+app.use("/api/auth", authRouter);
 app.use("/api/wallet",walletRouter);
 app.use("/api/admin",adminRouter);
+app.use("/api/payment",paymentRouter)
 
 
 module.exports=app;
