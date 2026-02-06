@@ -9,10 +9,11 @@ const {webhookHandler}=require("./utils/paymentWebhook")
 const { paymentRouter } = require("./routes/paymentRoutes");
 app.use(cookieParser())
 app.use(cors({
-    origin:"http://localhost:5173",
-    credentials:true
+  origin:"http://localhost:5173",
+  credentials:true
 }))
 
+require("./utils/orderExpiryJob");
 app.post(
   "/api/payment/webhooks",
   express.raw({ type: "application/json" }),
