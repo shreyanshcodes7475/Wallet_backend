@@ -25,8 +25,15 @@ const PaymentOrder=sequelize.define("PaymentOrder",{
     },
 
     status:{
-        type:DataTypes.ENUM('CREATED','PENDING', 'PAID', 'FAILED', 'EXPIRED'),
+        type:DataTypes.ENUM('CREATED','PENDING', 'FAILED',"SUCCESS"),
         defaultValue:"CREATED"
+    },
+
+    clientRequestId:{
+        type:DataTypes.STRING(100),
+        unique:true,
+        allowNull:false
+
     },
 
     gatewayOrderId:{

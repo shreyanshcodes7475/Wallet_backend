@@ -92,7 +92,7 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
         const senderWallet=await Wallet.findOne({
             where:{userId:fromUser.id},
             transaction:t,
-            lock:t.LOCK.UPDATE //lock part
+            lock:true //lock part
         })
 
         // checking fromUser balance
@@ -122,7 +122,7 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
                 fromWalletId:senderWallet?.id
             },
             transaction:t,
-            lock:t.LOCK.UPDATE
+            lock:true
             
         })
         if(existingTxn){
@@ -138,7 +138,7 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
         const receiverWallet=await Wallet.findOne({
             where:{userId:toUserId},
             transaction:t,
-            lock:t.LOCK.UPDATE
+            lock:true
         });
 
         if(!receiverWallet){
@@ -254,7 +254,7 @@ walletRouter.post("/set-pin", auth, async(req,res)=>{
         
         const user=await User.findByPk(req.user.id,{
             transaction:t,
-            lock:t.LOCK.UPDATE
+            lock:true
         })
         if (!user) {
         await t.rollback();
@@ -343,7 +343,7 @@ walletRouter.post("/reset-pin", auth, async (req, res) => {
 
     const user = await User.findByPk(req.user.id, {
       transaction: t,
-      lock: t.LOCK.UPDATE
+      lock: true
     });
 
     if (!user) {
@@ -407,7 +407,7 @@ walletRouter.get("/transaction",auth,async(req,res)=>{
     const offset=(page-1)*limit;
 
     const type=(req.query.type || "ALL").toUpperCase();
-    const allowedTypes=["ALL", "SENT","RECEIVED"];
+    const allowedTypes=["SENT", "RECEIVED", "ALL"];
 
     if(!allowedTypes.includes(type)){
         return res.status(400).json({
@@ -450,13 +450,13 @@ walletRouter.get("/transaction",auth,async(req,res)=>{
             include: [
                 {
                 model: Wallet,
-                as: "fromWallet",
+                as: "sender",
                 attributes:[],
                 include: [{ model: User, attributes: ["id", "email"] }]
                 },
                 {
                 model: Wallet,
-                as: "toWallet",
+                as: "receiver",
                 attributes:[],
                 include: [{ model: User, attributes: ["id", "email"] }]
                 }

@@ -5,18 +5,36 @@ const crypto=require("crypto")
 const {auth}=require("../middlewares/auth")
 const paymentRouter=express.Router();
 const {AddMoney}=require("../utils/AddMoney")
+const { webhookHandler } = require("../utils/paymentWebhook")
+const {sequelize} = require("../config/database")
 
 
 // creating order
 paymentRouter.post("/create-order",auth,async(req,res)=>{
+    const t= await sequelize.transaction();
     try{
-        const {amount}=req.body; //(in rupees)
+        const {amount,clientRequestId}=req.body; //(in rupees)
         const amt=Number(amount);
         const userId=req.user.id;
-
         if(!Number.isFinite(amt) || amt<=0){
+            await t.rollback();
             return res.status(400).json({
                 message:"Invalid amount"
+            })
+        }
+
+        const existing=await PaymentOrder.findOne({
+            where:{userId,clientRequestId},
+            transaction:t,
+        })
+
+        if(existing){
+            await t.rollback();
+            return res.status(400).json({
+                userId,
+                orderId: existing.gatewayOrderId,
+                key: process.env.RAZORPAY_KEY_ID,
+                amount: existing.amount,
             })
         }
 
@@ -24,18 +42,20 @@ paymentRouter.post("/create-order",auth,async(req,res)=>{
         const order=await razorpay.orders.create({
             amount:amt*100, //paise
             currency:"INR",
-            receipt:"rcpt_"+Date.now() 
+            receipt: "user_" + userId + "_" + Date.now()
+  
         })
 
         // save in db(payment order)
         const paymentOrder=await PaymentOrder.create({
             userId,
             gatewayOrderId:order.id,
+            clientRequestId,
             amount:amt,
-            status:"CREATED"
-            
-        })
+            status:"PENDING"
+        },{transaction:t})
 
+        await t.commit();
 
         res.json({
             userId,
@@ -44,9 +64,11 @@ paymentRouter.post("/create-order",auth,async(req,res)=>{
             amount:amt,
             paymentOrderId:paymentOrder.id
         })
+        
     }
     catch(err){
-        res.status(500).json({
+        await t.rollback();
+        res.status(500).json({  
             message:"Failed to create order",
             error:err.message
         })
@@ -75,20 +97,17 @@ paymentRouter.post("/verify-payment",auth,async(req,res)=>{
             })
         }
         // payment is genninue
-        const result = await AddMoney(amount, userId, razorpay_payment_id, req.ip);
-        console.log("BODY:", razorpay_order_id + "|" + razorpay_payment_id);
-        console.log("EXPECTED:", expectedSignature);
-        console.log("RECEIVED:", razorpay_signature);
-
-        res.json({ message: "Wallet credited", data: result });
+        res.json({ message: "Payment verified. Awaiting confirmation."});
 
     }
     catch(err){
+        PaymentOrder.status="FAILED";
         res.status(500).json({
             message:" Payment Verification failed "
         })
     }
 })
 
+// webhooks
 
 module.exports={paymentRouter};
