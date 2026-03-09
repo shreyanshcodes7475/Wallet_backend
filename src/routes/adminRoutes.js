@@ -5,7 +5,7 @@ const { User, AuditLog, Transaction } = require("../models");
 const {Wallet}=require("../models")
 const adminRouter=express.Router();
 const bcrypt=require("bcrypt");
-const { Op,fn,col } = require("sequelize");
+const { Op,fn,col, where } = require("sequelize");
 const { NUMBER } = require("sequelize");
 
 
@@ -237,13 +237,15 @@ adminRouter.get("/dashboard", auth, adminAuth,async(req,res)=>{
             })
         ]);
 
+
         res.status(200).json({
             users:{
-                total:totalUsers
+                total:totalWallets
             },
             wallets:{
                 total:totalWallets
             },
+            blockedWallets,
             transaction:{
                 total:totalTransactions,
                 failed:failedTransactions,
@@ -269,6 +271,48 @@ adminRouter.get("/dashboard", auth, adminAuth,async(req,res)=>{
     }
 })
 
+// admin wallet
+adminRouter.get("/wallet",auth,adminAuth,async(req,res)=>{
+    try{
+
+        const activeWallets= await Wallet.findAll(
+            {
+                attributes:["availableBalance","lockedUntil","status",],
+                where:{status:"active"},
+                include:[
+                    {
+                        model:User,
+                        attributes:["firstName", "lastName", "walletLockedUntil" ,"failedPinAttempts", "kycStatus","riskScore"]
+                    }
+                ]
+            }
+        );
+        const blockedWallets= await Wallet.findAll(
+            {
+                attributes:["availableBalance","lockedUntil","status",],
+                where:{status:"blocked"},
+                include:[
+                    {
+                        model:User,
+                        attributes:["firstName", "lastName", "walletLockedUntil" ,"failedPinAttempts", "kycStatus","riskScore"]
+                    }
+                ]
+            }
+        );
+
+        res.status(200).json({
+            activeWallets,
+            blockedWallets,
+            message:"Wallet data fetched succesfully"
+        })
+        
+    }
+    catch(err){
+        res.status(500).json({
+            message:"Failed to fetch wallet details",
+        })
+    }
+})
 
 adminRouter.get("/ping",auth,adminAuth,(req,res)=>{
     res.json({
