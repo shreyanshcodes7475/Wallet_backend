@@ -7,7 +7,7 @@ cron.schedule("1 * * * * *",async(req,res)=>{
         const cutoff = new Date(Date.now() - 1 * 60 * 1000);
     
         const [updated]=await PaymentOrder.update(
-            {status:"FAILED"},
+            {status:"EXPIRED"},
             {where:{
                 status:"PENDING",
                 createdAt:{[Op.lt]:cutoff}

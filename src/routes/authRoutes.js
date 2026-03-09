@@ -116,7 +116,7 @@ authRouter.post("/logout",async(req,res)=>{
 authRouter.get("/protected",auth,(req,res)=>{
     res.json({
         message:"You are logged in",
-        user:req.user.email
+        user:req.user
     })
 })
 

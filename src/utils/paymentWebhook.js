@@ -71,6 +71,9 @@ const webhookHandler=async (req,res)=>{
                 message:"Payment order missing"
             })
         }
+        if (paymentOrder.status === "FAILED") {
+        return res.status(200).send("Order already closed");
+        }
 
         // already processed ?
         if(paymentOrder.status=="SUCCESS"){

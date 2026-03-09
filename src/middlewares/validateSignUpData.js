@@ -1,7 +1,7 @@
 const validator=require("validator");
 
 const validateSignUpData=(req,res,next)=>{
-    const {firstName,lastName,email, password,phoneNumber}=req.body;
+    let {firstName,lastName,email, password,phoneNumber}=req.body;
 
     if (!firstName || !lastName || !email || !password || !phoneNumber) {
     return res.status(400).json({ message: "All fields are required" });

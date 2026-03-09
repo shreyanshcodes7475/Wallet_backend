@@ -25,7 +25,7 @@ const PaymentOrder=sequelize.define("PaymentOrder",{
     },
 
     status:{
-        type:DataTypes.ENUM('CREATED','PENDING', 'FAILED',"SUCCESS"),
+        type:DataTypes.ENUM('CREATED','PENDING', 'FAILED',"SUCCESS", 'EXPIRED'),
         defaultValue:"CREATED"
     },
 

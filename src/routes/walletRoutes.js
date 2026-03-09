@@ -46,7 +46,7 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
     let txn;
 
     try{
-        const {phoneNumber,amount,idempotencyKey}=req.body;
+        const {phoneNumber,amount,idempotencyKey,description}=req.body;
         const amt=Number(amount);
         const fromUser=req.user;
 
@@ -154,7 +154,8 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
             toWalletId:receiverWallet.id,
             idempotencyKey,
             paymentOrderId: Number(process.env.SYSTEM_PAYMENT_ORDER_ID),
-            gatewayOrderId: Number(process.env.SYSTEM_GATEWAY_ORDER_ID)
+            gatewayOrderId: Number(process.env.SYSTEM_GATEWAY_ORDER_ID),
+            description
         },{transaction:t})
 
         // before state
@@ -443,6 +444,7 @@ walletRouter.get("/transaction",auth,async(req,res)=>{
 
     // fetch transaction
     const {count,rows}=await Transaction.findAndCountAll({
+        attributes:["fromWalletId", "toWalletId", "description", "gatewayOrderId","metadata", "referenceId", "amount", "type", "status","createdAt", "updatedAt"],
         where:whereCondition,
         order:[["createdAt","DESC"]],
         limit,
@@ -451,14 +453,14 @@ walletRouter.get("/transaction",auth,async(req,res)=>{
                 {
                 model: Wallet,
                 as: "sender",
-                attributes:[],
-                include: [{ model: User, attributes: ["id", "email"] }]
+                attributes:["userId"],
+                include: [{ model: User, attributes: ["firstName", "lastName"] }]
                 },
                 {
                 model: Wallet,
                 as: "receiver",
-                attributes:[],
-                include: [{ model: User, attributes: ["id", "email"] }]
+                attributes:["userId"],
+                include: [{ model: User, attributes: ["firstName", "lastName"] }]
                 }
             ]
     });
