@@ -151,6 +151,11 @@ Database (MySQL)
 * Total transaction volume
 * Failed transactions
 * Today’s transactions & volume
+* admin  users filter:
+  -- kyc status filter
+  -- wallet status filter
+  -- Search Filter (email / phone)
+
 
 ---
 

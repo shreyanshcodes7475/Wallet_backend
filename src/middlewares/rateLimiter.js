@@ -22,9 +22,9 @@ const transferLimiter=rateLimit({
 // pin limmter
 
 const pinLimiter=rateLimit({
-    windowMs:5*60*1000, // 5min
+    windowMs:24*60*60*1000, // 1day
     max:5,
-    message:"Too many incorrect pin attempts. Try later" 
+    message:"Too many incorrect pin attempts. Try again after 24hrs" 
 })
 
 module.exports={

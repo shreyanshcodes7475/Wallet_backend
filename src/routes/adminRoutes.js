@@ -245,7 +245,6 @@ adminRouter.get("/dashboard", auth, adminAuth,async(req,res)=>{
             wallets:{
                 total:totalWallets
             },
-            blockedWallets,
             transaction:{
                 total:totalTransactions,
                 failed:failedTransactions,
@@ -271,49 +270,96 @@ adminRouter.get("/dashboard", auth, adminAuth,async(req,res)=>{
     }
 })
 
-// admin wallet
-adminRouter.get("/wallet",auth,adminAuth,async(req,res)=>{
-    try{
 
-        const activeWallets= await Wallet.findAll(
-            {
-                attributes:["availableBalance","lockedUntil","status",],
-                where:{status:"active"},
-                include:[
-                    {
-                        model:User,
-                        attributes:["firstName", "lastName", "walletLockedUntil" ,"failedPinAttempts", "kycStatus","riskScore"]
-                    }
-                ]
-            }
-        );
-        const blockedWallets= await Wallet.findAll(
-            {
-                attributes:["availableBalance","lockedUntil","status",],
-                where:{status:"blocked"},
-                include:[
-                    {
-                        model:User,
-                        attributes:["firstName", "lastName", "walletLockedUntil" ,"failedPinAttempts", "kycStatus","riskScore"]
-                    }
-                ]
-            }
-        );
+
+// admin wallet block
+adminRouter.patch("/wallet/:status/:walletId", auth,adminAuth,async (req,res)=>{
+    try{
+        const {status,walletId}=req.params;
+        if(!status || !walletId){
+            return res.status(400).json({
+                message:"A request must include status and its walletid"
+            })
+        }
+
+        const wallet =await Wallet.findOne({where:{id:walletId}});
+        if(!wallet){
+            return res.status(400).json({
+                message:"No wallet exists corresponding to given input"
+            })
+        }
+        
+
+        status==="active"? wallet.status="active":wallet.status="blocked";
+        await wallet.save();
 
         res.status(200).json({
-            activeWallets,
-            blockedWallets,
-            message:"Wallet data fetched succesfully"
+            message:`Wallet ${status} succesfully`
         })
-        
+
     }
     catch(err){
         res.status(500).json({
-            message:"Failed to fetch wallet details",
+            error:err.message,
+            message:`unable to ${status}`
         })
     }
 })
 
+
+// admin user list
+adminRouter.get("/user", auth,adminAuth,async(req,res)=>{
+
+    try{
+        const page=Math.max(Number(req.query.page)||1,1 );
+        const limit=Math.min(Number(req.query.limit)||10,50);
+        const offset=(page-1)*limit;
+
+        const kycStatus=(req.query.kycStatus || "ALL");
+        const walletStatus=(req.query.walletStatus || "ALL")
+        // const searchFilter=req.body.Search || "";
+
+        let whereCondition={
+            role:"user"
+        };
+        if(kycStatus!="ALL"){
+            whereCondition.kycStatus=kycStatus
+        }
+        if(walletStatus!="ALL"){
+            whereCondition.Wallet.status=walletStatus
+        }
+
+
+        const {rows,count}=await User.findAndCountAll({
+            attributes:["id","firstName", "lastName", "email", "createdAt","phoneNumber","kycStatus"],
+            where:whereCondition,
+            order:[["createdAt", "DESC"]],
+            limit,
+            offset,
+            include:[{
+                model:Wallet,
+                attributes:["id","status","lockedUntil"]
+            }]
+
+        })
+
+        res.status(200).json({
+            page,
+            limit,
+            User:rows
+        })
+
+    }
+    catch(err){
+        return res.status(500).json({
+            error:err.message,
+            message:"Failed to fetch user data"
+        })
+    }
+})
+
+
+// admin ping
 adminRouter.get("/ping",auth,adminAuth,(req,res)=>{
     res.json({
         message:"Admin access granted"
