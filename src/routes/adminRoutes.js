@@ -75,7 +75,7 @@ adminRouter.get("/transaction",auth,adminAuth, async(req,res)=>{
                 message:"Invalid type. Use ALL | ADD | TRANSFER"
             })
         }
-
+        
         if(!allowedStatus.includes(status)){
             return res.status(400).json({
                 message:"Invalid Status. Use ALL | PENDING | SUCCESS | FAILED"
@@ -288,7 +288,6 @@ adminRouter.patch("/wallet/:status/:walletId", auth,adminAuth,async (req,res)=>{
                 message:"No wallet exists corresponding to given input"
             })
         }
-        
 
         status==="active"? wallet.status="active":wallet.status="blocked";
         await wallet.save();
@@ -315,32 +314,40 @@ adminRouter.get("/user", auth,adminAuth,async(req,res)=>{
         const limit=Math.min(Number(req.query.limit)||10,50);
         const offset=(page-1)*limit;
 
-        const kycStatus=(req.query.kycStatus || "ALL");
-        const walletStatus=(req.query.walletStatus || "ALL")
-        // const searchFilter=req.body.Search || "";
+        const {phone="", role="ALL",kycStatus="ALL",walletStatus="ALL"} = req?.query || {};
 
-        let whereCondition={
-            role:"user"
-        };
+
+        let whereCondition={};
+        if(role!="ALL"){
+            whereCondition.role=role
+        }
+
         if(kycStatus!="ALL"){
             whereCondition.kycStatus=kycStatus
         }
+        
+        let wherecondition1={};
         if(walletStatus!="ALL"){
-            whereCondition.Wallet.status=walletStatus
+            wherecondition1.status=walletStatus;
         }
 
+        if(phone){
+            whereCondition.phoneNumber=phone || "";
+        }
+        
 
         const {rows,count}=await User.findAndCountAll({
-            attributes:["id","firstName", "lastName", "email", "createdAt","phoneNumber","kycStatus"],
+            attributes:["id","firstName", "lastName", "email", "createdAt","phoneNumber","kycStatus", "role"],
             where:whereCondition,
             order:[["createdAt", "DESC"]],
             limit,
             offset,
             include:[{
-                model:Wallet,
+                model:Wallet,   
+                where:wherecondition1,
+                required:false,
                 attributes:["id","status","lockedUntil"]
             }]
-
         })
 
         res.status(200).json({
