@@ -19,11 +19,13 @@ walletRouter.post("/balance",auth,verifyWalletPin ,async(req,res)=>{
         const wallet=await Wallet.findOne({
             where:{userId:loggedInUser.id}
         })
+
         if(!wallet){
-             return res.status(401).json({
+            return res.status(401).json({
                 message:"No wallet found"
             })
         }
+
 
         res.json({
             message:"Balance info",
@@ -95,6 +97,13 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
             lock:true //lock part
         })
 
+        if(senderWallet.status==="blocked"){
+            await t.rollback();
+            return res.status(400).json({
+                message:"Your wallet is blocked. You can't transfer funds."
+            })
+        }
+
         // checking fromUser balance
         if(!senderWallet){
             throw new Error("Sender wallet does not exist")
@@ -143,6 +152,13 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
 
         if(!receiverWallet){
             throw new Error("Receiver wallet not found")
+        }
+
+        if(receiverWallet.status==="blocked"){
+            await t.rollback();
+            return res.status(400).json({
+                message:"Receiver's Wallet is blocked. This wallet can't receive funds."
+            })
         }
         
         // create a transaction record

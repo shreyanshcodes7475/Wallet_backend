@@ -69,6 +69,7 @@ adminRouter.get("/transaction",auth,adminAuth, async(req,res)=>{
         const allowedStatus=["PENDING","SUCCESS","FAILED", "ALL"]
         const type=(req.query.type || "ALL").toUpperCase();
         const status=(req.query.status || "ALL").toUpperCase();
+        const {transactionsId, fromDate,toDate, phoneNumber}=req.query|| "";
 
         if(!allowedTypes.includes(type)){
             return res.status(400).json({
@@ -81,8 +82,33 @@ adminRouter.get("/transaction",auth,adminAuth, async(req,res)=>{
                 message:"Invalid Status. Use ALL | PENDING | SUCCESS | FAILED"
             })
         }
-
+        
         let whereCondition={}
+        let whereConditionUser={};
+        if(phoneNumber){
+            whereConditionUser.phoneNumber=phoneNumber;
+        }
+
+
+        // filter by date range
+        if(fromDate || toDate){
+            whereCondition.createdAt={};
+            if(fromDate){
+                whereCondition.createdAt[Op.gte]=new Date(fromDate)
+            }
+            if(toDate){
+                const endDate=new Date(toDate);
+                endDate.setHours(23,59,59,999);
+                whereCondition.createdAt[Op.lte]=endDate;
+            }   
+        }
+
+
+
+        if(transactionsId){
+            whereCondition.referenceId=transactionsId
+        }
+        
         if(type!="ALL"){
             whereCondition.type=type;
         }
@@ -91,22 +117,31 @@ adminRouter.get("/transaction",auth,adminAuth, async(req,res)=>{
         }
 
         const {rows,count}=await Transaction.findAndCountAll({
+            attributes:["referenceId", "amount", "type", "status", "createdAt"],
             where:whereCondition,
             order:[["createdAt", "DESC"]],
             limit,
             offset,
-            include: [
+            include:[
                 {
-                model: Wallet,
-                as: "fromWallet",
-                attributes:[],
-                include: [{ model: User, attributes: ["id", "email"] }]
+                    model:Wallet,
+                    as:"sender",
+                    attributes:["id"],
+                    include:[{  
+                        where:whereConditionUser,
+                        model:User,
+                        attributes:["firstName", "lastName", "email", "phoneNumber"]
+                     }]
                 },
-                {
-                model: Wallet,
-                as: "toWallet",
-                attributes:[],
-                include: [{ model: User, attributes: ["id", "email"] }]
+                                {
+                    model:Wallet,
+                    as:"receiver",
+                    attributes:["id"],
+                    include:[{  
+                        where:whereConditionUser,
+                        model:User,
+                        attributes:["firstName", "lastName", "email", "phoneNumber"]
+                     }]
                 }
             ]
         })
@@ -135,43 +170,77 @@ adminRouter.get("/auditlog",auth,adminAuth,async(req,res)=>{
         const limit=Math.min(Number(req.query.limit || 20),50);
         const offset=(page-1)*limit;
 
-        const{userId,transactionsId,action,fromDate,toDate}=req.query;
+        const{phoneNumber,status,transactionsId,action,fromDate,toDate}=req.query;
 
-        const whereCondition={};
-        // filter by user
-        if(userId) whereCondition.userId=userId;
+        const whereConditionaudit={};
+        const whereConditionTransaction={};
+        const whereConditionUser={};
+
+        // filter by phone number
+        if(phoneNumber){
+            whereConditionUser.phoneNumber=phoneNumber;
+        }
+
+        if(status){
+            const allowedStatus=["CREATED", "PENDING", "PROCESSING", "SUCCESS", "FAILED", "REVERSED", "EXPIRED"];   
+            if(!allowedStatus.includes(status.toUpperCase())){
+                return res.status(400).json({
+                    message:"Invalid Status."
+                })
+            }
+            whereConditionTransaction.status=status.toUpperCase();
+        }
+
 
         // filter by transaction id
-        if(transactionsId) whereCondition.transactionsId=transactionsId
+        if(transactionsId) whereConditionTransaction.referenceId=transactionsId
+        const isTransactionFilterApplied = Object.keys(whereConditionTransaction).length > 0;
 
         // filter by action
-        if(action) whereCondition.action=action.toUpperCase();
+       if(action){
+        const allowedActions = ["TRANSFER_SENT", "TRANSFER_RECEIVED", "DEPOSIT_SUCCESS", "SET_WALLET_PIN","RESET_WALLET_PIN", "WALLET_BLOCKED", "WALLET_UNBLOCKED", "LOGIN_FAILED", "LOGIN_SUCCESS","USER_CREATED"];
+        if(!allowedActions.includes(action.toUpperCase())){
+            return res.status(400).json({
+                message:"Invalid action filter"
+            })
+        }
+        whereConditionaudit.action=action.toUpperCase();
+        }
 
         // filter by date range
         if(fromDate || toDate){
-            whereCondition.createdAt={};
+            whereConditionaudit.createdAt={};
             if(fromDate){
-                whereCondition.createdAt[Op.gte]=new Date(fromDate)
+                whereConditionaudit.createdAt[Op.gte]=new Date(fromDate)
             }
             if(toDate){
-                whereCondition.createdAt[Op.lte]=new Date(toDate)
-            }
+                const endDate=new Date(toDate);
+                endDate.setHours(23,59,59,999);
+                whereConditionaudit.createdAt[Op.lte]=endDate;
+            }   
         }
 
         const{rows,count}=await AuditLog.findAndCountAll({
-            where:whereCondition,
+            distinct:true,
+            attributes:["action","ipAddress","createdAt"],
+            where:whereConditionaudit,
             order:[["createdAt", "DESC"]],
             limit,
             offset,
             include:[
                 {
                     model:User,
-                    attributes:["id","email"]
+                    where:Object.keys(whereConditionUser).length ? whereConditionUser : undefined,
+                    attributes:["firstName", "lastName","PhoneNumber","email"],
+                    required:false
                 },
                 {
                     model:Transaction,
-                    attributes:["id", "amount", "type", "status"],
-                    required:false
+                    where: isTransactionFilterApplied
+                    ? whereConditionTransaction
+                    : undefined,
+                    attributes:[ "referenceId"],
+                    required:isTransactionFilterApplied
                 }
             ]
         })
@@ -184,7 +253,6 @@ adminRouter.get("/auditlog",auth,adminAuth,async(req,res)=>{
             logs:rows
 
         })
-
     }
     catch(err){
         res.status(500).json({
@@ -289,7 +357,36 @@ adminRouter.patch("/wallet/:status/:walletId", auth,adminAuth,async (req,res)=>{
             })
         }
 
-        status==="active"? wallet.status="active":wallet.status="blocked";
+        if(status==="active" && wallet.status==="active"){
+            return res.status(400).json({
+                message:"Wallet is already active"
+            })
+        }
+
+        if(status==="blocked" && wallet.status==="blocked"){   
+            return res.status(400).json({
+            message:"Wallet is already blocked"
+            })
+        }
+
+        if(status==="active" && wallet.status==="blocked"){
+            wallet.lockedUntil=null;
+            wallet.status="active";
+            await AuditLog.create({
+                userId:req.user.id,
+                action:"WALLET_UNBLOCKED",
+                ipAddress:req.ip
+            })
+        }
+
+        if(status==="blocked" && wallet.status==="active"){
+            wallet.status="blocked";
+            await AuditLog.create({
+                userId:req.user.id,
+                action:"WALLET_BLOCKED",
+                ipAddress:req.ip
+            })
+        }
         await wallet.save();
 
         res.status(200).json({

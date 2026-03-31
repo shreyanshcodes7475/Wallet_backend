@@ -1,6 +1,6 @@
 const express=require("express")
 const {razorpay}=require("../utils/razorpay")
-const {PaymentOrder}=require("../models")
+const {PaymentOrder, Wallet}=require("../models")
 const crypto=require("crypto")
 const {auth}=require("../middlewares/auth")
 const paymentRouter=express.Router();
@@ -16,6 +16,24 @@ paymentRouter.post("/create-order",auth,async(req,res)=>{
         const {amount,clientRequestId}=req.body; //(in rupees)
         const amt=Number(amount);
         const userId=req.user.id;
+        if(!userId){
+            return res.status(400).json({
+                message:"User not found"
+            })
+        }
+        const wallet =await Wallet.findOne({where:{userId},transaction:t})
+
+        if(!wallet){
+            await t.rollback();
+            return res.status(400).json({
+                message:"Wallet not found for user"
+            })
+        }
+
+        if(wallet.status==="blocked"){
+            throw new Error(" Your wallet is blocked. Please contact support.")
+        }
+
         if(!Number.isFinite(amt) || amt<=0){
             await t.rollback();
             return res.status(400).json({
@@ -108,6 +126,6 @@ paymentRouter.post("/verify-payment",auth,async(req,res)=>{
     }
 })
 
-// webhooks
+
 
 module.exports={paymentRouter};

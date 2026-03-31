@@ -3,7 +3,7 @@ const { validate } = require("uuid");
 const authRouter=express.Router();
 const {validateSignUpData}=require("../middlewares/validateSignUpData")
 const bcrypt=require("bcrypt");
-const { User, Wallet } = require("../models");
+const { User, Wallet, AuditLog } = require("../models");
 const {sequelize}=require("../config/database");
 const { generateToken } = require("../utils/jwt");
 const {auth} =require("../middlewares/auth");
@@ -12,7 +12,6 @@ const { loginLimiter } = require("../middlewares/rateLimiter");
 
 // signup api
 authRouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
-    const t=await sequelize.transaction();
     const { firstName, lastName, email, password,phoneNumber } = req.body;
     try{
         //check if user exists-
@@ -32,14 +31,18 @@ authRouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
             email,
             password:passwordHash,
             phoneNumber
-        },{transaction:t});
+        });
 
         await Wallet.create(
             {userId:user.id},
-            {transaction:t}
         )
 
-        await t.commit();
+        await AuditLog.create({
+            userId:user.id,
+            ipAddress:req.ip,
+            action:"USER_CREATED",
+        })
+
 
         res.status(201).json({
             message:"User Registered successfully",
@@ -47,7 +50,6 @@ authRouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
         })
     }
     catch(err){
-        await t.rollback();
         res.status(500).json({
             message:"Signup failed",
             error:err.message
@@ -67,6 +69,11 @@ authRouter.post("/login",async(req,res)=>{
 
         const user=await User.findOne({where:{email}});
         if(!user){
+        await AuditLog.create({
+            userId:user.id,
+            ipAddress:req.ip,
+            action:"LOGIN_FAILED",
+        },)
             return res.status(400).json({
                 message:"Invalid Credentials"
             })
@@ -74,6 +81,12 @@ authRouter.post("/login",async(req,res)=>{
 
         const isMatch=await bcrypt.compare(password,user.password);
         if(!isMatch){
+
+        await AuditLog.create({
+            userId:user.id,
+            ipAddress:req.ip,
+            action:"LOGIN_FAILED",
+        },)
             return res.status(400).json({
                 message:"Invalid credentials"
             })
@@ -85,6 +98,12 @@ authRouter.post("/login",async(req,res)=>{
             httpOnly:true,
             sameSite:"Strict",
             expires:new Date(Date.now() + 8*60*60*1000)
+        })
+
+        await AuditLog.create({
+            userId:user.id,
+            ipAddress:req.ip,
+            action:"LOGIN_SUCCESS",
         })
 
         res.json({
