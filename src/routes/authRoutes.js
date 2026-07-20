@@ -1,5 +1,4 @@
 const express=require("express");
-const { validate } = require("uuid");
 const authRouter=express.Router();
 const {validateSignUpData}=require("../middlewares/validateSignUpData")
 const bcrypt=require("bcrypt");
@@ -8,6 +7,7 @@ const {sequelize}=require("../config/database");
 const { generateToken } = require("../utils/jwt");
 const {auth} =require("../middlewares/auth");
 const { loginLimiter } = require("../middlewares/rateLimiter");
+const validate=require("validator");
 
 
 // signup api
@@ -23,6 +23,12 @@ authRouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
         }
         
         // encryption of password
+        if(validate.isStrongPassword(password)===false){
+            return res.status(400).json({
+                message:"Password should be strong. It must contain at least 8 characters, including uppercase, lowercase, number and symbol."
+            })
+        }
+
         const passwordHash=await bcrypt.hash(password,10);
 
         const user=await User.create({
@@ -106,14 +112,27 @@ authRouter.post("/login",async(req,res)=>{
             action:"LOGIN_SUCCESS",
         })
 
+        const usersafeData={
+            id:user.id,
+            firstName:user.firstName,
+            lastName:user.lastName,
+            email:user.email,
+            phoneNumber:user.phoneNumber,
+            role:user.role, 
+            failedPinAttempts: user.failedPinAttempts,
+            walletLockedUntil: user.walletLockedUntil,
+            kycStatus: user.kycStatus,
+            riskScore: user.riskScore,
+        }
+
         res.json({
             message:"Login Successful",
-            user:user
+            user:usersafeData
         })
 
     }
     catch(err){
-        res.status(400).json({
+        res.status(500).json({
             message:"Login failed",
             error: err.message
         })
@@ -129,6 +148,95 @@ authRouter.post("/logout",async(req,res)=>{
         expires:new Date(Date.now())
     })
     res.send("Logout succesfully")
+})
+
+
+// update password api
+authRouter.patch("/update-password",auth,async(req,res)=>{
+    try{
+        const {oldPassword,newPassword}=req.body;
+        const user=req.user;
+        if(!user){
+            return res.status(404).json({
+                message:"User not found"
+            })
+        }
+
+        if(!oldPassword || !newPassword){
+            return res.status(400).json({
+                message:"Both fields are required"
+            })
+        }
+
+        if(oldPassword===newPassword){
+            return res.status(400).json({
+                message:"New password cannot be same as old password"
+            })
+        }
+
+        if(validate.isStrongPassword(newPassword)===false){
+            return res.status(400).json({
+                message:"Password should be strong. It must contain at least 8 characters, including uppercase, lowercase, number and symbol."
+            })
+        }
+
+        const isMatch=await bcrypt.compare(oldPassword,user.password);
+        if(!isMatch){
+            return res.status(400).json({
+                message:"Old password is incorrect"
+            })
+        }
+
+
+
+        const newPasswordHash=await bcrypt.hash(newPassword,10);
+        user.password=newPasswordHash;
+        await user.save();
+        res.json({
+            message:"Password updated successfully"
+        })  
+    }
+    catch(err){
+        res.status(500).json({
+            message:"Failed to update password",
+            error:err.message
+        })
+    }
+})
+
+// profile api
+authRouter.get("/profile",auth,async(req,res)=>{
+    try{
+        const user=await User.findByPk(req.user.id);
+        if(!user){
+            return res.status(404).json({
+                message:"User not found"
+            })
+        }
+        const usersafeData={
+            id:user.id,
+            firstName:user.firstName,
+            lastName:user.lastName,
+            email:user.email,
+            phoneNumber:user.phoneNumber,
+            role:user.role, 
+            failedPinAttempts: user.failedPinAttempts,
+            walletLockedUntil: user.walletLockedUntil,
+            kycStatus: user.kycStatus,
+            riskScore: user.riskScore,
+        }
+        res.json({
+            success:true,
+            user: usersafeData
+            
+        })
+    }
+    catch(err){
+        res.status(500).json({
+            message:"Failed to fetch profile",
+            error:err.message
+        })
+    }
 })
 
 // auth test api
