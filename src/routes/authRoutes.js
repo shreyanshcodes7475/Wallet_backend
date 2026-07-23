@@ -12,13 +12,40 @@ const validate=require("validator");
 
 // signup api
 authRouter.post("/signup",validateSignUpData,loginLimiter,async(req,res)=>{
-    const { firstName, lastName, email, password,phoneNumber } = req.body;
     try{
-        //check if user exists-
-        const existingUser=await User.findOne({where:{email}});
-        if(existingUser){
+    const { firstName, lastName, email, password,phoneNumber } = req.body;
+        if(!firstName || !lastName || !email || !password || !phoneNumber){
             return res.status(400).json({
-                message:"Email already registered"
+                message:"All fields are required"
+            })
+        }
+
+        if(!validate.isEmail(email)){
+            return res.status(400).json({
+                message:"Invalid email format"
+            })
+        }
+
+        if(!validate.isMobilePhone(phoneNumber)){
+            return res.status(400).json({
+                message:"Invalid phone number format"
+            })
+        }
+
+
+        //check if user exists-
+        const existingUser=await User.findOne({
+            where:{
+                [Op.or]:[
+                    { email: email },
+                    { phoneNumber: phoneNumber }
+                ]
+            }
+        })  
+
+        if(existingUser){
+            return res.status(409).json({
+                message:"Email or phone number already registered"
             })
         }
         
@@ -158,7 +185,7 @@ authRouter.patch("/update-password",auth,async(req,res)=>{
         const user=req.user;
         if(!user){
             return res.status(404).json({
-                message:"User not found"
+                message:"User not logged in"
             })
         }
 

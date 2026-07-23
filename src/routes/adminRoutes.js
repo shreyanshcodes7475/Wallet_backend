@@ -7,21 +7,50 @@ const adminRouter=express.Router();
 const bcrypt=require("bcrypt");
 const { Op,fn,col, where } = require("sequelize");
 const { NUMBER } = require("sequelize");
+const validate=require("validator");
 
 
 
 // admin signup api-
 adminRouter.post("/create-admin",auth ,adminAuth,async(req,res)=>{
     try{
-        const{email,firstName,lastName,password}=req.body;
+        const{email,firstName,lastName,password,phoneNumber}=req.body;
+        if(!email || !firstName || !lastName || !password || !phoneNumber){
+            return res.status(400).json({
+                message:"All fields are required"
+            })
+        }
+
+        if(validate.isEmail(email)===false){
+            return res.status(400).json({
+                message:"Invalid email format"
+            })
+        }
+
+        if(validate.isMobilePhone(phoneNumber, "en-IN")===false || phoneNumber.length!==10){
+            return res.status(400).json({
+                message:"Invalid phone number. It should be a 10-digit number."
+            })
+        }
+
+        if(validate.isStrongPassword(password)===false){
+            return res.status(400).json({
+                message:"Password should be strong. It must contain at least 8 characters, including uppercase, lowercase, number and symbol."
+            })
+        }
+
         const existingUser=await User.findOne({
             where:{
-                email:email,
+                [Op.or]:[
+                    { email: email },
+                    { phoneNumber: phoneNumber }
+                ]
             }
         })
+
         if(existingUser){
             return res.status(409).json({
-                message:"email already registered"
+                message:"email or phone number already registered"
             })
         }
 
@@ -34,12 +63,13 @@ adminRouter.post("/create-admin",auth ,adminAuth,async(req,res)=>{
             lastName,
             email,
             password:passwordHash,
-            role:"admin"
+            role:"admin",
+            phoneNumber
         })
 
         // audit log who created admin
         await AuditLog.create({
-            UserId:req.user.id,
+            userId:req.user.id,
             action:"ADMIN_CREATED",
             ipAddress:req.ip
         })
@@ -51,7 +81,7 @@ adminRouter.post("/create-admin",auth ,adminAuth,async(req,res)=>{
 
     }
     catch(err){
-        res.status(400).json({
+        res.status(500  ).json({
             message:"Admin registration failed",
             error:err.message
         })
@@ -146,7 +176,7 @@ adminRouter.get("/transaction",auth,adminAuth, async(req,res)=>{
             ]
         })
 
-        res.json({
+        res.status(200).json({
             page,
             limit,
             totalTransaction:count,
@@ -337,8 +367,6 @@ adminRouter.get("/dashboard", auth, adminAuth,async(req,res)=>{
         })
     }
 })
-
-
 
 // admin wallet block
 adminRouter.patch("/wallet/:status/:walletId", auth,adminAuth,async (req,res)=>{

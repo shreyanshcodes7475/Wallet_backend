@@ -27,7 +27,7 @@ walletRouter.post("/balance",auth,verifyWalletPin ,async(req,res)=>{
         }
 
 
-        res.json({
+        res.status(200).json({
             message:"Balance info",
             balance:wallet.availableBalance,
             status:wallet.status
@@ -242,7 +242,7 @@ walletRouter.post("/transfer",auth, transferLimiter,pinLimiter,verifyWalletPin,a
         },{transaction:t})
 
         await t.commit();
-        res.json({
+        res.status(200).json({
             message:"Transfer sucessful",
             transactionId:txn.id
         })
@@ -408,7 +408,6 @@ walletRouter.post("/reset-pin", auth, async (req, res) => {
 });
 
 
-
 // transaction history api
 walletRouter.get("/transaction",auth,async(req,res)=>{
     try{
@@ -481,7 +480,7 @@ walletRouter.get("/transaction",auth,async(req,res)=>{
             ]
     });
 
-    res.json({
+    res.status(200).json({
         page,
         limit,
         type,

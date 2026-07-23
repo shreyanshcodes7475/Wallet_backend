@@ -22,7 +22,7 @@ app.post(
 app.use(express.json());
 
 
-app.use("/api/admin", adminRouter);
+
 app.use("/api/auth", authRouter);
 app.use("/api/wallet",walletRouter);
 app.use("/api/admin",adminRouter);

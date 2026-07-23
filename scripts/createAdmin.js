@@ -24,15 +24,20 @@ const bcrypt=require("bcrypt");
             lastName:"Admin",
             email:"admin@vaultpay.com",
             password:passwordHash,
+            phoneNumber:"0000000000",
             role:"admin"
         })
 
+        await admin.save();
+        
         console.log("Admin created :", admin.email);
+        await sequelize.close();
         process.exit(0);
 
     }
     catch(err){
-        console.log(err);
+        console.error("Error creating admin:", err);
+        await sequelize.close();
         process.exit(1);
     }
 })();
